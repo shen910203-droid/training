@@ -1,0 +1,258 @@
+{
+"ek:barbell-squat": [
+"img/barbell-squat-1.png",
+"img/barbell-squat-2.png"
+],
+"ek:bench-dips": [
+"img/bench-dips-1.png",
+"img/bench-dips-2.png"
+],
+"ek:bench-press": [
+"img/bench-press-1.png",
+"img/bench-press-2.png"
+],
+"ek:bench-press-dumbbell": [
+"img/bench-press-dumbbell-1.png",
+"img/bench-press-dumbbell-2.png"
+],
+"ek:bicep-curl-with-machine": [
+"img/bicep-curl-with-machine-1.png",
+"img/bicep-curl-with-machine-2.png"
+],
+"ek:bicep-hammer-curl-with-dumbbell": [
+"img/bicep-hammer-curl-with-dumbbell-1.png",
+"img/bicep-hammer-curl-with-dumbbell-2.png"
+],
+"ek:biceps-curl-with-dumbbell": [
+"img/biceps-curl-with-dumbbell-1.png",
+"img/biceps-curl-with-dumbbell-2.png"
+],
+"ek:butterfly-machine": [
+"img/butterfly-machine-1.png",
+"img/butterfly-machine-2.png"
+],
+"ek:cable-crossover": [
+"img/cable-crossover-1.png",
+"img/cable-crossover-2.png"
+],
+"ek:calves-press-on-leg-machine": [
+"img/calves-press-on-leg-machine-1.png",
+"img/calves-press-on-leg-machine-2.png"
+],
+"ek:chest-dips": [
+"img/chest-dips-1.png",
+"img/chest-dips-2.png"
+],
+"ek:crunches": [
+"img/crunches-1.png",
+"img/crunches-2.png"
+],
+"ek:dumbbell-incline-bench-press": [
+"img/dumbbell-incline-bench-press-1.png",
+"img/dumbbell-incline-bench-press-2.png"
+],
+"ek:dumbbell-shoulder-press": [
+"img/dumbbell-shoulder-press-1.png",
+"img/dumbbell-shoulder-press-2.png"
+],
+"ek:front-dumbbell-raise": [
+"img/front-dumbbell-raise-1.png",
+"img/front-dumbbell-raise-2.png"
+],
+"ek:hammer-curls-with-rope-and-cable": [
+"img/hammer-curls-with-rope-and-cable-1.png",
+"img/hammer-curls-with-rope-and-cable-2.png"
+],
+"ek:hyperextensions": [
+"img/hyperextensions-1.png",
+"img/hyperextensions-2.png"
+],
+"ek:incline-chest-press": [
+"img/incline-chest-press-1.png",
+"img/incline-chest-press-2.png"
+],
+"ek:lateral-dumbbell-raises": [
+"img/lateral-dumbbell-raises-1.png",
+"img/lateral-dumbbell-raises-2.png"
+],
+"ek:leg-extensions": [
+"img/leg-extensions-1.png",
+"img/leg-extensions-2.png"
+],
+"ek:leg-press": [
+"img/leg-press-1.png",
+"img/leg-press-2.png"
+],
+"ek:lying-leg-curl-machine": [
+"img/lying-leg-curl-machine-1.png",
+"img/lying-leg-curl-machine-2.png"
+],
+"ek:machine-bench-press": [
+"img/machine-bench-press-1.png",
+"img/machine-bench-press-2.png"
+],
+"ek:preacher-curl-with-machine": [
+"img/preacher-curl-with-machine-1.png",
+"img/preacher-curl-with-machine-2.png"
+],
+"ek:pull-ups": [
+"img/pull-ups-1.png",
+"img/pull-ups-2.png"
+],
+"ek:push-ups": [
+"img/push-ups-1.png",
+"img/push-ups-2.png"
+],
+"ek:romanian-dead-lift": [
+"img/romanian-dead-lift-1.png",
+"img/romanian-dead-lift-2.png"
+],
+"ek:seated-ab-crunch-with-cable": [
+"img/seated-ab-crunch-with-cable-1.png",
+"img/seated-ab-crunch-with-cable-2.png"
+],
+"ek:seated-cable-rows": [
+"img/seated-cable-rows-1.png",
+"img/seated-cable-rows-2.png"
+],
+"ek:seated-leg-curl": [
+"img/seated-leg-curl-1.png",
+"img/seated-leg-curl-2.png"
+],
+"ek:seated-shoulder-press-machine": [
+"img/seated-shoulder-press-machine-1.png",
+"img/seated-shoulder-press-machine-2.png"
+],
+"ek:shoulder-shrugs": [
+"img/shoulder-shrugs-1.png",
+"img/shoulder-shrugs-2.png"
+],
+"ek:smith-machine-bench-press": [
+"img/smith-machine-bench-press-1.png",
+"img/smith-machine-bench-press-2.png"
+],
+"ek:smith-machine-squats": [
+"img/smith-machine-squats-1.png",
+"img/smith-machine-squats-2.png"
+],
+"ek:standing-biceps-curl-with-cable": [
+"img/standing-biceps-curl-with-cable-1.png",
+"img/standing-biceps-curl-with-cable-2.png"
+],
+"ek:standing-calf-raises-using-machine": [
+"img/standing-calf-raises-using-machine-1.png",
+"img/standing-calf-raises-using-machine-2.png"
+],
+"ek:straight-arm-push-down": [
+"img/straight-arm-push-down-1.png",
+"img/straight-arm-push-down-2.png"
+],
+"ek:thigh-abductor": [
+"img/thigh-abductor-1.png",
+"img/thigh-abductor-2.png"
+],
+"ek:thigh-adductor": [
+"img/thigh-adductor-1.png",
+"img/thigh-adductor-2.png"
+],
+"ek:triceps-extensions-using-machine": [
+"img/triceps-extensions-using-machine-1.png",
+"img/triceps-extensions-using-machine-2.png"
+],
+"ek:triceps-pushdown-with-cable": [
+"img/triceps-pushdown-with-cable-1.png",
+"img/triceps-pushdown-with-cable-2.png"
+],
+"ek:triceps-pushdown-with-rope-and-cable": [
+"img/triceps-pushdown-with-rope-and-cable-1.png",
+"img/triceps-pushdown-with-rope-and-cable-2.png"
+],
+"ek:underhand-pull-down": [
+"img/underhand-pull-down-1.png",
+"img/underhand-pull-down-2.png"
+],
+"ek:v-bar-pull-down": [
+"img/v-bar-pull-down-1.png",
+"img/v-bar-pull-down-2.png"
+],
+"ek:walking-lunges": [
+"img/walking-lunges-1.png",
+"img/walking-lunges-2.png"
+],
+"ek:wide-grip-lat-pull-down": [
+"img/wide-grip-lat-pull-down-1.png",
+"img/wide-grip-lat-pull-down-2.png"
+],
+"fe:Ab_Crunch_Machine": [
+"img/fe-Ab_Crunch_Machine-1.jpg",
+"img/fe-Ab_Crunch_Machine-2.jpg"
+],
+"fe:Barbell_Hip_Thrust": [
+"img/fe-Barbell_Hip_Thrust-1.jpg",
+"img/fe-Barbell_Hip_Thrust-2.jpg"
+],
+"fe:Bent_Over_Barbell_Row": [
+"img/fe-Bent_Over_Barbell_Row-1.jpg",
+"img/fe-Bent_Over_Barbell_Row-2.jpg"
+],
+"fe:Cable_Rear_Delt_Fly": [
+"img/fe-Cable_Rear_Delt_Fly-1.jpg",
+"img/fe-Cable_Rear_Delt_Fly-2.jpg"
+],
+"fe:Cable_Rope_Overhead_Triceps_Extension": [
+"img/fe-Cable_Rope_Overhead_Triceps_Extension-1.jpg",
+"img/fe-Cable_Rope_Overhead_Triceps_Extension-2.jpg"
+],
+"fe:Cable_Seated_Lateral_Raise": [
+"img/fe-Cable_Seated_Lateral_Raise-1.jpg",
+"img/fe-Cable_Seated_Lateral_Raise-2.jpg"
+],
+"fe:Dip_Machine": [
+"img/fe-Dip_Machine-1.jpg",
+"img/fe-Dip_Machine-2.jpg"
+],
+"fe:Face_Pull": [
+"img/fe-Face_Pull-1.jpg",
+"img/fe-Face_Pull-2.jpg"
+],
+"fe:Hack_Squat": [
+"img/fe-Hack_Squat-1.jpg",
+"img/fe-Hack_Squat-2.jpg"
+],
+"fe:Hanging_Leg_Raise": [
+"img/fe-Hanging_Leg_Raise-1.jpg",
+"img/fe-Hanging_Leg_Raise-2.jpg"
+],
+"fe:Leverage_Iso_Row": [
+"img/fe-Leverage_Iso_Row-1.jpg",
+"img/fe-Leverage_Iso_Row-2.jpg"
+],
+"fe:One-Arm_Dumbbell_Row": [
+"img/fe-One-Arm_Dumbbell_Row-1.jpg",
+"img/fe-One-Arm_Dumbbell_Row-2.jpg"
+],
+"fe:Plank": [
+"img/fe-Plank-1.jpg",
+"img/fe-Plank-2.jpg"
+],
+"fe:Reverse_Machine_Flyes": [
+"img/fe-Reverse_Machine_Flyes-1.jpg",
+"img/fe-Reverse_Machine_Flyes-2.jpg"
+],
+"fe:Smith_Machine_Bench_Press": [
+"img/fe-Smith_Machine_Bench_Press-1.jpg",
+"img/fe-Smith_Machine_Bench_Press-2.jpg"
+],
+"fe:Smith_Machine_Incline_Bench_Press": [
+"img/fe-Smith_Machine_Incline_Bench_Press-1.jpg",
+"img/fe-Smith_Machine_Incline_Bench_Press-2.jpg"
+],
+"fe:Split_Squat_with_Dumbbells": [
+"img/fe-Split_Squat_with_Dumbbells-1.jpg",
+"img/fe-Split_Squat_with_Dumbbells-2.jpg"
+],
+"fe:T-Bar_Row_with_Handle": [
+"img/fe-T-Bar_Row_with_Handle-1.jpg",
+"img/fe-T-Bar_Row_with_Handle-2.jpg"
+]
+}
