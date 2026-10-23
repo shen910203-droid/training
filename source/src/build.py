@@ -1,6 +1,7 @@
 import json, sys, os
 sys.path.insert(0, os.path.dirname(__file__))
-from exdata import EX, EQUIP, TEMPLATES, FOODS
+from exdata import EX, EQUIP, TEMPLATES, FOODS, OLD_TEMPLATES
+from rx import RX, WARN
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 src = os.path.join(root, 'src')
 eqname = {q[0]: q[1] for q in EQUIP}
@@ -8,12 +9,12 @@ ex = []
 for (i, name, day, eq, load, pri, sec, t, img, cues) in EX:
     mach = eqname[eq[0]] if eq else '自體重'
     if eq and eq[0] in ('dumbbell', 'barbell') and len(eq) > 1: mach = eqname[eq[0]] + '＋' + eqname[eq[1]]
-    ex.append(dict(id=i, name=name, day=day, eq=eq, load=load, pri=pri, sec=sec, t=t, img=img, cues=cues, mach=mach))
+    ex.append(dict(id=i, name=name, day=day, eq=eq, load=load, pri=pri, sec=sec, t=t, img=img, cues=cues, mach=mach, warn=WARN[i]))
 ids = {e['id'] for e in ex}
 for d, slots in TEMPLATES.items():
     for s in slots:
-        for x in s: assert x in ids, x
-data = dict(ex=ex, equip=[dict(id=q[0], name=q[1], desc=q[2], cat=q[3], img=q[4]) for q in EQUIP], templates=TEMPLATES, foods=FOODS,
+        for x in s['ids']: assert x in ids, x
+data = dict(ex=ex, equip=[dict(id=q[0], name=q[1], desc=q[2], cat=q[3], img=q[4]) for q in EQUIP], templates=TEMPLATES, oldTemplates=OLD_TEMPLATES, rx={k: list(v) for k, v in RX.items()}, foods=FOODS,
             imgmap=json.load(open(os.path.join(src, 'imgmap.json'))))
 body = json.load(open(os.path.join(src, 'body.json')))
 css = open(os.path.join(src, 'style.css')).read()

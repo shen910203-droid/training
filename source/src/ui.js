@@ -77,6 +77,15 @@ function migrate(st) {
   out.settings = Object.assign(blankState().settings, (st || {}).settings || {});
   out.settings.cycle = Object.assign({ idx: 0, round: 1, restOn: null }, out.settings.cycle || {});
   out.supp = Object.assign(blankState().supp, (st || {}).supp || {});
+  out.rxu = out.rxu || {};
+  const T = out.settings.templates;
+  if (T && !out.settings.tplVer) {
+    const same = JSON.stringify(T) === JSON.stringify(DATA.oldTemplates);
+    if (same) out.settings.templates = JSON.parse(JSON.stringify(DATA.templates));
+    else for (const d of Object.keys(T)) T[d] = T[d].map(sl => Array.isArray(sl) ? { ids: sl, sets: 0 } : sl);
+    out.settings.tplVer = 2; out.settings.tplUpgraded = same;
+  }
+  if (!T) out.settings.tplVer = 2;
   out.schema = 1;
   return out;
 }
@@ -112,6 +121,14 @@ const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 function toast(msg, pr) {
   const t = $('#toast'); t.innerHTML = '<div class="in' + (pr ? ' pr' : '') + '">' + msg + '</div>';
   clearTimeout(toast.t); toast.t = setTimeout(() => t.innerHTML = '', pr ? 3200 : 2200);
+}
+function choiceBox(msg, opts) {
+  return new Promise(res => {
+    const w = document.createElement('div'); w.className = 'dialog-wrap';
+    w.innerHTML = '<div class="dialog" role="dialog" aria-modal="true"><p>' + msg + '</p><div class="stack" style="gap:8px">' + opts.map((o, i) => '<button class="btn block choice ' + (o.cls || '') + '" data-r="' + i + '">' + o.label + (o.sub ? '<span class="xs">' + o.sub + '</span>' : '') + '</button>').join('') + '</div></div>';
+    w.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b || e.target === w) { w.remove(); res(b ? opts[+b.dataset.r].v : null); } });
+    $('#layer').appendChild(w);
+  });
 }
 function confirmBox(msg, okText, danger) {
   return new Promise(res => {
@@ -275,7 +292,7 @@ function vToday() {
     const s = doneToday[doneToday.length - 1];
     const sets = S.sets.filter(x => x.sid === s.id && !x.warm);
     let vol = 0; for (const st of sets) { const e = EXMAP[st.ex]; if (e) vol += setVolume(e, st, S); }
-    h += '<h2>今天已完成</h2><div class="hero-day"><div><div class="d">' + DAY_NAME[s.day] + '</div><div class="muted small">' + sets.length + ' 組・容量 ' + Math.round(vol).toLocaleString() + ' kg</div></div><span class="tag ok">' + ic('check') + ' 完成</span></div>';
+    h += '<h2>' + (s.partial ? '今天練了一部分' : '今天已完成') + '</h2><div class="hero-day"><div><div class="d">' + DAY_NAME[s.day] + '</div><div class="muted small">' + sets.length + ' 組・容量 ' + Math.round(vol).toLocaleString() + ' kg</div></div>' + (s.partial ? '<span class="tag warn">未練完</span>' : '<span class="tag ok">' + ic('check') + ' 完成</span>') + '</div>';
     h += '<div class="hr"></div><div class="small muted">下一次：<b style="color:var(--tx)">' + DAY_NAME[nextTrainDay(S)] + '</b>' + (ORDER[c.idx] === 'rest' ? '（明天休息）' : '') + '</div>';
   } else if (isRest) {
     h += '<h2>今天</h2><div class="hero-day"><div><div class="d">休息日</div><div class="muted small">肌肉在休息時長大。下一次是推日。</div></div></div>';
@@ -350,17 +367,19 @@ function vTrain() {
   const gym = activeGym(S);
   let h = '<div class="top"><div><div class="sub">' + esc(gym ? gym.name : '') + '</div><h1>訓練</h1></div></div><div class="stack">';
   h += '<div class="card"><h2>下一次</h2><div class="hero-day"><div><div class="d">' + DAY_NAME[day] + '</div><div class="muted small">' + DAY_DESC[day] + '</div></div><span class="tag brass">第 ' + c.round + ' 輪・' + ph.name + '</span></div>';
+  const psets = dayPlanSets(S, day);
   h += '<div class="list" style="margin-top:8px">' + dayPlan(S, day).map(id => {
-    const e = EXMAP[id]; const sg = suggestion(S, e, ph, null);
-    return '<button class="li" style="border-left:0;border-right:0;border-bottom:0;background:transparent;width:100%;text-align:left" data-a="exDetail" data-v="' + id + '">' + exThumb(e) + '<div class="grow"><div class="t">' + esc(e.name) + '</div><div class="small muted">' + (sg.cal ? '第一次做，先試重' : '上次 ' + fmtSet(e, sg.top) + '・' + sg.when) + '</div></div>' + ic('chev', 'dim') + '</button>';
+    const e = EXMAP[id]; const sg = suggestion(S, e, ph, null); const rr = rxFor(S, e, ph, psets[id]);
+    return '<button class="li" style="border-left:0;border-right:0;border-bottom:0;background:transparent;width:100%;text-align:left" data-a="exDetail" data-v="' + id + '">' + exThumb(e) + '<div class="grow"><div class="t">' + esc(e.name) + '</div><div class="small muted">' + rxLine(rr, e) + '</div><div class="xs dim">' + (sg.cal ? '第一次做，先試重' : '上次 ' + fmtSet(e, sg.top) + '・' + sg.when) + '</div></div>' + ic('chev', 'dim') + '</button>';
   }).join('') + '</div>';
   h += '<div style="margin-top:12px"><button class="btn pri block" data-a="startSession" data-v="' + day + '">' + ic('play') + '開始' + DAY_NAME[day] + '</button></div>';
+  h += '<div class="row" style="margin-top:8px"><button class="btn sm ghost" data-a="openTpl">' + ic('edit') + '修改課表</button></div>';
   h += '<div class="row" style="margin-top:10px;gap:8px"><span class="small muted">改練</span>' + ['push', 'pull', 'legs'].filter(d => d !== day).map(d => '<button class="chip" data-a="startSession" data-v="' + d + '">' + DAY_NAME[d] + '</button>').join('') + '</div></div>';
   // 最近訓練
   const done = S.sessions.filter(s => s.end).sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start)).slice(0, 12);
   h += '<div class="card"><h2>最近訓練</h2>' + (done.length ? '<div class="list">' + done.map(s => {
     const sets = S.sets.filter(x => x.sid === s.id && !x.warm); const prs = sets.filter(x => x.pr).length;
-    return '<button class="li" style="border-left:0;border-right:0;border-bottom:0;background:transparent;width:100%;text-align:left" data-a="sessionDetail" data-v="' + s.id + '"><div class="grow"><div class="t">' + DAY_NAME[s.day] + ' <span class="muted small" style="font-weight:400">' + mdLabel(s.date) + '</span></div><div class="small muted">' + sets.length + ' 組' + (prs ? '・' + prs + ' 個 PR' : '') + '</div></div>' + ic('chev', 'dim') + '</button>';
+    return '<button class="li" style="border-left:0;border-right:0;border-bottom:0;background:transparent;width:100%;text-align:left" data-a="sessionDetail" data-v="' + s.id + '"><div class="grow"><div class="t">' + DAY_NAME[s.day] + ' <span class="muted small" style="font-weight:400">' + mdLabel(s.date) + '</span></div><div class="small muted">' + sets.length + ' 組' + (prs ? '・' + prs + ' 個 PR' : '') + (s.partial ? '・未練完' : '') + '</div></div>' + ic('chev', 'dim') + '</button>';
   }).join('') + '</div>' : '<div class="empty">完成第一次訓練後會出現在這裡</div>') + '</div>';
   h += '<div class="card"><div class="row between"><div><h2 style="margin:0">有氧</h2><div class="small muted">先保留，有做再記</div></div><button class="btn sm" data-a="addCardio">' + ic('plus') + '記錄</button></div>' +
     (S.cardio.length ? '<div class="list" style="margin-top:6px">' + S.cardio.slice(-5).reverse().map(x => '<div class="li"><div class="grow"><div class="t">' + esc(x.type) + '</div><div class="small muted">' + mdLabel(x.date) + '・' + x.min + ' 分鐘' + (x.speed ? '・速度 ' + x.speed : '') + (x.incline ? '・坡度 ' + x.incline : '') + '</div></div><button class="icon-btn" data-a="delCardio" data-v="' + x.id + '" aria-label="刪除">' + ic('trash') + '</button></div>').join('') + '</div>' : '') + '</div>';
@@ -404,9 +423,10 @@ function exCard(s, e, ph) {
   s.done = s.done || {};
   const sets = S.sets.filter(x => x.sid === s.id && x.ex === e.id).sort((a, b) => a.n - b.n);
   const work = sets.filter(x => !x.warm);
-  const target = setsFor(e, ph) + ((s.extra || {})[e.id] || 0); const open = UI.openEx === e.id; const done = !!s.done[e.id];
+  const rx = sessionRx(S, s, e);
+  const target = rx.sets + ((s.extra || {})[e.id] || 0); const open = UI.openEx === e.id; const done = !!s.done[e.id];
   const sg = suggestion(S, e, ph, s.id);
-  const sub = done ? work.map(x => fmtSet(e, x)).join('、') || '略過' : (sg.cal ? '試重模式' : '上次 ' + fmtSet(e, sg.top)) + '・' + repRange(e, ph).join('–') + ' 下';
+  const sub = done ? work.map(x => fmtSet(e, x)).join('、') || '略過' : (sg.cal ? '試重模式' : '上次 ' + fmtSet(e, sg.top)) + '・' + rx.lo + '–' + rx.hi + (e.load === 'time' ? ' 秒' : ' 下');
   let h = '<div class="exc' + (open ? ' open' : '') + (done ? ' done' : '') + '" id="ex-' + e.id + '"><button class="exc-h" data-a="toggleEx" data-v="' + e.id + '" aria-expanded="' + open + '">' + exThumb(e) +
     '<div class="grow"><div class="t" style="font-weight:600">' + esc(e.name) + '</div><div class="small muted ell">' + esc(sub) + '</div></div>' +
     (done ? '<span class="tag ok">' + ic('check') + '完成</span>' : '<span class="tag ' + (work.length >= target ? 'ok' : work.length ? 'brass' : '') + '">' + work.length + '/' + target + '</span>') + '</button>';
@@ -414,6 +434,9 @@ function exCard(s, e, ph) {
   const u = S.exu[e.id] || {}; const note = u.notes && u.notes[s.gymId];
   h += '<div class="exc-b">';
   if (u.pain) h += '<div class="note warn small">' + ic('alert') + ' 你標記過這個動作會痛' + (u.pain.note ? '：' + esc(u.pain.note) : '') + '</div>';
+  h += '<div class="rxbar"><span><b>' + target + '</b> 組</span><span><b>' + rx.lo + '–' + rx.hi + '</b> ' + (e.load === 'time' ? '秒' : '下') + '</span><span>留 <b>' + esc(rx.rir) + '</b> 下</span><span>休息 <b>' + fmtRest(rx.rest) + '</b></span></div>';
+  h += '<div class="xs" style="color:' + (rx.fail === 'no' ? 'var(--mu)' : 'var(--red-soft)') + '">' + (rx.fail === 'no' ? '' : ic('flame') + ' ') + FAIL_TEXT[rx.fail] + '</div>';
+  if (e.warn && e.warn.length) h += '<details class="warnbox"' + (UI.warnOpen ? ' open' : '') + '><summary>' + ic('alert') + '<span class="ell">' + esc(e.warn[0]) + '</span></summary><ul>' + e.warn.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul></details>';
   h += '<div class="note brass small">' + sg.text + (sg.stall ? '<div style="margin-top:4px;color:var(--warn)">連續 3 次沒進步：換次數範圍、換動作或安排減量。</div>' : '') + '</div>';
   h += '<button class="mline" data-a="editMachineNote" data-v="' + e.id + '">' + ic('edit') + '<span class="ell ' + (note ? '' : 'muted') + '">' + (note ? esc(note) : '記機台設定（座椅、椅背、握把）') + '</span></button>';
   const isTime = e.load === 'time';
@@ -563,6 +586,9 @@ function sheetExDetail(id) {
     let b = '<div class="stack">';
     b += '<div class="row wrap" style="gap:6px"><span class="tag brass">' + DAY_NAME[e.day] + '</span><span class="tag">' + esc(e.mach) + '</span><span class="tag">' + (e.t === 'c' ? '複合動作' : '孤立動作') + '</span>' + (gym && !exAvailable(e, gym) ? '<span class="tag warn">目前健身房沒有</span>' : '') + '</div>';
     b += exFigs(e);
+    { const r = rxFor(S, e, phaseOf(S.settings.cycle.round), 0); const P = phaseOf(S.settings.cycle.round);
+      b += '<div class="card"><div class="row between"><h2 style="margin:0">建議做法</h2><button class="btn sm" data-a="exRx" data-v="' + id + '">調整</button></div><div class="rxbar" style="margin-top:10px"><span><b>' + r.sets + '</b> 組</span><span><b>' + r.lo + '–' + r.hi + '</b> ' + (e.load === 'time' ? '秒' : '下') + '</span><span>留 <b>' + esc(r.rir) + '</b> 下</span><span>休息 <b>' + fmtRest(r.rest) + '</b></span></div><div class="small" style="margin-top:8px;color:' + (r.fail === 'no' ? 'var(--mu)' : 'var(--red-soft)') + '">' + FAIL_TEXT[r.fail] + '</div><div class="xs dim" style="margin-top:4px">目前' + P.name + '（' + P.short + '），組數以課表為準</div></div>';
+      if (e.warn && e.warn.length) b += '<div class="card warncard"><h2>' + ic('alert') + ' 注意（保護關節）</h2><ul class="warnlist">' + e.warn.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul></div>'; }
     b += '<div class="card"><h2>發力位置</h2>' + bodyMap(e.pri, e.sec) + '<div class="legend" style="margin-top:10px"><span><i style="background:#e5533d"></i>主要：' + e.pri.map(m => MUSCLE_NAME[m] || m).join('、') + '</span>' + (e.sec.length ? '<span><i style="background:#f0a090"></i>輔助：' + e.sec.map(m => MUSCLE_NAME[m] || m).join('、') + '</span>' : '') + '</div></div>';
     b += '<div class="card"><h2>動作要領</h2><ol class="cues">' + e.cues.map(c => '<li>' + esc(c) + '</li>').join('') + '</ol><div class="note small" style="margin-top:12px"><b>重量怎麼記：</b>' + esc(LOAD_HELP[e.load]) + '</div></div>';
     const note = gym && u.notes ? u.notes[gym.id] : '';
@@ -592,7 +618,7 @@ function sheetExDetail(id) {
 }
 
 /* ---------- 新手引導 ---------- */
-function obDefaults() { return { step: 0, sex: 'm', birthYear: 2002, height: 174, kg: 49, goal: 'bulk', act: 1.55, gymName: '我的健身房', equip: DATA.equip.map(q => q.id).filter(id => !['lateral_raise_machine', 'assisted_pullup', 'hip_thrust_machine', 'ab_machine', 'dip_machine', 'row_machine'].includes(id)), startDay: 'push', has: false, creatineStarted: false, outdoor: true }; }
+function obDefaults() { return { step: 0, sex: 'm', birthYear: 2002, height: 174, kg: 49, goal: 'bulk', act: 1.55, gymName: '我的健身房', equip: DATA.equip.map(q => q.id).filter(id => !['lateral_raise_machine', 'assisted_pullup', 'hip_thrust_machine', 'dip_machine'].includes(id)), startDay: 'push', has: false, creatineStarted: false, outdoor: true }; }
 const OB_STEPS = 8;
 function sheetOnboard() {
   const o = UI.ob; const st = o.step;
@@ -688,7 +714,7 @@ function sheetSettings() {
     it('setGyms', '健身房與器材', (gym ? gym.name + '・' + gym.equip.length + ' 種器材' : '尚未設定')) +
     it('setTemplates', '課表', '推、拉、腿各日的動作') +
     it('setCycle', '循環進度', '下一次 ' + DAY_NAME[ORDER[S.settings.cycle.idx]] + '・第 ' + S.settings.cycle.round + ' 輪') +
-    it('setTraining', '訓練設定', '休息 ' + S.settings.restSec + ' 秒・槓重 ' + S.settings.barKg + 'kg') +
+    it('setTraining', '訓練設定', '槓重 ' + S.settings.barKg + 'kg・休息時間依動作') +
     it('setSupp', '補充品與喝水', (S.supp.has ? '高蛋白 ' + S.supp.p + 'g/匙' : '沒有高蛋白') + (p.creatineStart ? '・肌酸從 ' + mdLabel(p.creatineStart) : '')) +
     it('backup', '備份與還原', S.settings.lastBackup ? '上次 ' + mdLabel(S.settings.lastBackup.slice(0, 10)) : '還沒備份過') +
     it('cloud', '雲端同步', SYNC.cfg ? (SYNC.status === 'error' ? '未同步：' + (SYNC.meta.err || '') : SYNC.meta.last ? '上次 ' + mdLabel(SYNC.meta.last.slice(0, 10)) + ' ' + new Date(SYNC.meta.last).toTimeString().slice(0, 5) : '已連線') : '還沒連線（資料只在這支手機）') +
@@ -719,18 +745,48 @@ function sheetEquip(gid) {
     return { title: esc(g.name) + '・器材', body: '<div class="small muted" style="margin-bottom:6px">勾選這間有的器材。看圖認機器：重點是人怎麼使用它，品牌外觀會不同。</div>' + equipPicker(g.equip, 'gym:' + gid), foot: '<button class="btn pri" data-a="closeSheet">完成（' + g.equip.length + ' 種）</button>' };
   };
 }
+function rxLine(r, e) {
+  const reps = e && e.load === 'time' ? r.lo + '–' + r.hi + ' 秒' : r.lo + '–' + r.hi + ' 下';
+  return r.sets + ' 組 × ' + reps + '・休息 ' + fmtRest(r.rest);
+}
+function fmtRest(sec) { const m = Math.floor(sec / 60), x = sec % 60; return m ? m + (x ? ':' + pad2(x) : ' 分鐘') : x + ' 秒'; }
 function sheetTemplates() {
   const tpl = S.settings.templates; const gym = activeGym(S);
-  let b = '<div class="stack"><div class="small muted">每一格是一個動作位置。第一個是主選，健身房沒有或標記會痛時，自動用下一個。</div>';
+  let b = '<div class="stack"><div class="small muted">每一格是一個動作位置，按「調整」可以改組數、次數和休息時間。第一個是主選，健身房沒有或標記會痛時，自動用下一個備選。</div>';
+  if (S.settings.tplUpgraded) b += '<div class="note brass small">已換成新的預設菜單（減少夾胸、增加面拉和側平舉）。想用舊的，可以自己用「＋加入動作」加回來。</div>';
   for (const d of ['push', 'pull', 'legs']) {
-    b += '<div class="card"><h2>' + DAY_NAME[d] + '</h2><div class="stack" style="gap:8px">' + tpl[d].map((slot, i) => {
-      const e = EXMAP[slot[0]]; const avail = e && exAvailable(e, gym);
-      return '<div class="row" style="gap:8px"><span class="num dim" style="width:18px">' + (i + 1) + '</span><div class="grow"><div style="font-weight:600">' + esc(e ? e.name : '?') + '</div>' + (slot.length > 1 ? '<div class="xs muted">備選：' + slot.slice(1).map(x => EXMAP[x] ? EXMAP[x].name : '').join('、') + '</div>' : '') + (!avail ? '<div class="xs" style="color:var(--warn)">目前健身房沒有，會用備選</div>' : '') + '</div>' +
-        '<button class="icon-btn" data-a="tplMove" data-v="' + d + ':' + i + ':-1" aria-label="上移"' + (i === 0 ? ' disabled style="opacity:.3"' : '') + '>' + ic('up') + '</button><button class="icon-btn" data-a="tplSwap" data-v="' + d + ':' + i + '" aria-label="更換">' + ic('swap') + '</button><button class="icon-btn" data-a="tplDel" data-v="' + d + ':' + i + '" aria-label="刪除">' + ic('trash') + '</button></div>';
+    b += '<div class="card"><h2>' + DAY_NAME[d] + '</h2><div class="stack" style="gap:10px">' + tpl[d].map((slot, i) => {
+      const ids = slotIds(slot); const e = EXMAP[ids[0]]; const avail = e && exAvailable(e, gym);
+      const r = e ? rxFor(S, e, { n: 2 }, slot.sets) : null;
+      return '<div class="tslot"><div class="row" style="gap:8px;align-items:flex-start"><span class="num dim" style="width:18px;padding-top:2px">' + (i + 1) + '</span><div class="grow"><div style="font-weight:600">' + esc(e ? e.name : '?') + '</div>' +
+        (r ? '<div class="xs" style="color:var(--brass-hi)">' + rxLine(r, e) + '</div>' : '') +
+        (ids.length > 1 ? '<div class="xs muted">備選：' + ids.slice(1).map(x => EXMAP[x] ? EXMAP[x].name : '').join('、') + '</div>' : '') + (!avail ? '<div class="xs" style="color:var(--warn)">目前健身房沒有，會用備選</div>' : '') + '</div></div>' +
+        '<div class="row" style="gap:6px;margin-top:8px;justify-content:flex-end"><button class="btn sm" data-a="tplRx" data-v="' + d + ':' + i + '">調整</button><button class="icon-btn" data-a="tplMove" data-v="' + d + ':' + i + '" aria-label="上移"' + (i === 0 ? ' disabled style="opacity:.3"' : '') + '>' + ic('up') + '</button><button class="icon-btn" data-a="tplSwap" data-v="' + d + ':' + i + '" aria-label="更換動作">' + ic('swap') + '</button><button class="icon-btn" data-a="tplDel" data-v="' + d + ':' + i + '" aria-label="刪除">' + ic('trash') + '</button></div></div>';
     }).join('') + '</div><button class="btn sm" style="margin-top:10px" data-a="tplAdd" data-v="' + d + '">' + ic('plus') + '加入動作</button></div>';
   }
   b += '<button class="btn danger block" data-a="tplReset">恢復預設課表</button></div>';
   return { title: '課表', body: b };
+}
+function sheetRxEdit(exId, slotRef) {
+  return () => {
+    const e = EXMAP[exId]; const base = baseRx(S, e);
+    const slot = slotRef ? S.settings.templates[slotRef.d][slotRef.i] : null;
+    const sets = slot && slot.sets ? slot.sets : base.sets;
+    const isTime = e.load === 'time';
+    const d0 = (DATA.rx && DATA.rx[e.id]) || null;
+    return {
+      title: '調整・' + esc(e.name),
+      body: '<div class="stack">' +
+        (slot ? '<label class="f">組數（' + DAY_NAME[slotRef.d] + '這一格）<div class="stepper" style="grid-template-columns:52px 1fr 52px"><button data-a="rxStep" data-v="sets:-1" aria-label="減少">−</button><input class="inp" id="rx-sets" inputmode="numeric" value="' + sets + '"><button data-a="rxStep" data-v="sets:1" aria-label="增加">+</button></div></label>' : '') +
+        '<div class="grid2"><label class="f">' + (isTime ? '最少秒數' : '最少次數') + '<input class="inp" id="rx-lo" inputmode="numeric" value="' + base.lo + '"></label><label class="f">' + (isTime ? '最多秒數' : '最多次數') + '<input class="inp" id="rx-hi" inputmode="numeric" value="' + base.hi + '"></label></div>' +
+        '<label class="f">組間休息（秒）<input class="inp" id="rx-rest" inputmode="numeric" value="' + base.rest + '"></label>' +
+        '<div class="chips">' + [60, 75, 90, 120, 150, 180].map(x => '<button class="chip' + (base.rest === x ? ' on' : '') + '" data-a="rxRest" data-v="' + x + '">' + fmtRest(x) + '</button>').join('') + '</div>' +
+        '<div class="note small"><b>建議留幾下：</b>' + esc(base.rir) + '・' + FAIL_TEXT[base.fail] + '<br><span class="muted">次數做到上限就加重。適應期次數會自動 +2，力量期複合動作 −2，減量週組數減半。</span></div>' +
+        (d0 ? '<div class="xs muted">預設：' + d0[0] + ' 組 × ' + d0[1] + '–' + d0[2] + (isTime ? ' 秒' : ' 下') + '・休息 ' + fmtRest(d0[5]) + '</div>' : '') +
+        '<div id="rx-warn"></div></div>',
+      foot: '<button class="btn" data-a="rxDefault" data-v="' + exId + (slotRef ? ':' + slotRef.d + ':' + slotRef.i : '') + '">恢復預設</button><button class="btn pri" data-a="rxSave" data-v="' + exId + (slotRef ? ':' + slotRef.d + ':' + slotRef.i : '') + '">儲存</button>'
+    };
+  };
 }
 function sheetPickEx(title, filterFn, onPick) {
   return () => {
@@ -747,13 +803,13 @@ function sheetCycle() {
   const c = S.settings.cycle;
   let b = '<div class="stack"><div class="small muted">循環是 推 → 拉 → 腿 → 休息。如果紀錄跟實際不同，在這裡校正。</div><div class="sec-title">下一次要練</div><div class="grid3">' + ['push', 'pull', 'legs'].map(d => '<button class="opt' + (ORDER[c.idx] === d ? ' on' : '') + '" data-a="cycSet" data-v="' + d + '"><b>' + DAY_NAME[d] + '</b></button>').join('') + '</div>' +
     '<label class="f">目前第幾輪（1 輪 = 推拉腿各一次）<input class="inp" id="cyc-r" inputmode="numeric" value="' + c.round + '"></label><button class="btn" data-a="cycRound">儲存輪數</button>' +
-    '<div class="card"><h2>階段（每 21 輪一個循環）</h2>' + [1, 2, 3, 4].map(n => { const P = PHASES[n]; const range = { 1: '1–7', 2: '8–14', 3: '15–19', 4: '20–21' }[n]; return '<div class="li"><div class="grow"><div class="t">' + P.name + ' <span class="muted small">第 ' + range + ' 輪</span></div><div class="small muted">' + P.sets + ' 組・複合 ' + P.c.join('–') + ' 下・孤立 ' + P.i.join('–') + ' 下・' + P.rir + '</div></div>' + (phaseOf(c.round).n === n ? '<span class="tag brass">現在</span>' : '') + '</div>'; }).join('') + '</div></div>';
+    '<div class="card"><h2>階段（每 21 輪一個循環）</h2><div class="small muted" style="margin-bottom:6px">每個動作的組數、次數、休息時間在「課表 → 調整」設定，階段會在這個基礎上自動加減。</div>' + [1, 2, 3, 4].map(n => { const P = PHASES[n]; const range = { 1: '1–7', 2: '8–14', 3: '15–19', 4: '20–21' }[n]; return '<div class="li"><div class="grow"><div class="t">' + P.name + ' <span class="muted small">第 ' + range + ' 輪</span></div><div class="small muted">' + P.short + '</div></div>' + (phaseOf(c.round).n === n ? '<span class="tag brass">現在</span>' : '') + '</div>'; }).join('') + '</div></div>';
   return { title: '循環進度', body: b };
 }
 function sheetTraining() {
   const s = S.settings;
   return {
-    title: '訓練設定', body: '<div class="stack"><label class="f">組間休息（秒）<input class="inp" id="ts-rest" inputmode="numeric" value="' + s.restSec + '"></label><label class="f">槓鈴重量（kg，標準奧林匹克槓是 20）<input class="inp" id="ts-bar" inputmode="decimal" value="' + s.barKg + '"></label>' +
+    title: '訓練設定', body: '<div class="stack"><div class="note small">組間休息時間已經依每個動作分開設定（例如深蹲 3 分鐘、側平舉 60 秒），在「課表 → 調整」修改。</div><label class="f">槓鈴重量（kg，標準奧林匹克槓是 20）<input class="inp" id="ts-bar" inputmode="decimal" value="' + s.barKg + '"></label>' +
       '<button class="opt' + (s.preferMachines ? ' on' : '') + '" data-a="togPrefer"><b>' + (s.preferMachines ? '✓ ' : '') + '偏好器械</b><span>預設課表以器械為主，比較穩定、好控制</span></button><button class="btn pri" data-a="saveTraining">儲存</button></div>'
   };
 }
@@ -872,6 +928,7 @@ A.settings = () => openSheet('settings', sheetSettings);
 A.setProfile = () => openSheet('profile', sheetProfile);
 A.setGyms = () => openSheet('gyms', sheetGyms);
 A.setTemplates = () => openSheet('tpl', sheetTemplates);
+A.openTpl = () => openSheet('tpl', sheetTemplates);
 A.setCycle = () => openSheet('cycle', sheetCycle);
 A.setTraining = () => openSheet('training', sheetTraining);
 A.setSupp = () => openSheet('supp', sheetSupp);
@@ -938,7 +995,7 @@ A.startSession = async v => {
   const today = todayStr(); const c = S.settings.cycle;
   if (ORDER[c.idx] === 'rest') skipRest(S);
   const gym = activeGym(S);
-  const s = { id: uid(), date: today, tz: tzName(), gymId: gym ? gym.id : null, day: v, round: c.round, start: new Date().toTimeString().slice(0, 5), startTs: Date.now(), end: null, plan: dayPlan(S, v) };
+  const s = { id: uid(), date: today, tz: tzName(), gymId: gym ? gym.id : null, day: v, round: c.round, start: new Date().toTimeString().slice(0, 5), startTs: Date.now(), end: null, plan: dayPlan(S, v), psets: dayPlanSets(S, v) };
   S.sessions.push(s); UI.openEx = s.plan[0] || null; save(); UI.tab = 'train'; render(); window.scrollTo(0, 0);
 };
 function scrollToEx(id) {
@@ -974,7 +1031,7 @@ A.saveRow = async eid => {
   const pr = checkPR(S, e, st); if (pr) st.pr = pr;
   S.sets.push(st); delete UI.rows[s.id + ':' + eid + ':' + n]; save();
   if (pr) toast(ic('star') + ' 新紀錄！' + esc(e.name) + ' ' + pr, true);
-  startTimer(S.settings.restSec);
+  startTimer(sessionRx(S, s, e).rest);
   render(); keepRowVisible(eid);
 };
 A.rowRir = v => {
@@ -1042,9 +1099,9 @@ A.swapEx = v => {
   const s = liveSession(); const e = EXMAP[v];
   UI.pickQ = '';
   openSheet('pick', sheetPickEx('換掉「' + e.name + '」', x => x.id !== v && x.pri[0] === e.pri[0] && !s.plan.includes(x.id), async nid => {
-    s.plan[s.plan.indexOf(v)] = nid; UI.openEx = nid; save(); closeSheet('pick');
+    s.plan[s.plan.indexOf(v)] = nid; s.psets = s.psets || {}; s.psets[nid] = s.psets[v] || 0; UI.openEx = nid; save(); closeSheet('pick');
     const keep = await confirmBox('以後的' + DAY_NAME[s.day] + '也用「' + EXMAP[nid].name + '」取代「' + e.name + '」嗎？', '設為預設');
-    if (keep) { const tpl = S.settings.templates[s.day]; for (const slot of tpl) { const i = slot.indexOf(v); if (i >= 0) { slot.splice(i, 1); slot.unshift(nid); break; } } save(); toast('已更新課表'); }
+    if (keep) { const tpl = S.settings.templates[s.day]; for (const slot of tpl) { const L = slotIds(slot); const i = L.indexOf(v); if (i >= 0) { L.splice(i, 1); const j = L.indexOf(nid); if (j >= 0) L.splice(j, 1); L.unshift(nid); slot.ids = L; break; } } save(); toast('已更新課表'); }
     render();
   }));
 };
@@ -1061,11 +1118,19 @@ A.removeExFromSession = async v => {
 A.finishSession = async () => {
   const s = liveSession(); const sets = S.sets.filter(x => x.sid === s.id && !x.warm);
   if (!sets.length) { if (await confirmBox('這次還沒有記錄任何工作組，要放棄這次訓練嗎？', '放棄', true)) { S.sessions = S.sessions.filter(x => x !== s); save(); render(); } return; }
-  const ph = phaseOf(s.round);
-  const left = s.plan.filter(id => !(s.done || {})[id] && S.sets.filter(x => x.sid === s.id && x.ex === id && !x.warm).length < setsFor(EXMAP[id], ph));
-  if (left.length && !(await confirmBox('還有 ' + left.length + ' 個動作沒做完：' + left.map(id => EXMAP[id].name).join('、') + '。確定結束？', '結束'))) return;
+  const left = s.plan.filter(id => !(s.done || {})[id] && S.sets.filter(x => x.sid === s.id && x.ex === id && !x.warm).length < sessionRx(S, s, EXMAP[id]).sets);
+  let mode = 'done';
+  if (left.length) {
+    mode = await choiceBox('還有 ' + left.length + ' 個動作沒做完：' + left.map(id => esc(EXMAP[id].name)).join('、') + '。', [
+      { label: '繼續訓練', v: null },
+      { label: '結束，算' + DAY_NAME[s.day] + '練完了', sub: '保存紀錄，下一次換下一天', v: 'done', cls: 'pri' },
+      { label: '結束，下次再練一次' + DAY_NAME[s.day], sub: '保存已做的組數，但循環不往前（身體不舒服、時間不夠時用）', v: 'partial' }
+    ]);
+    if (!mode) return;
+  }
   s.end = new Date().toTimeString().slice(0, 5); s.endTs = Date.now();
-  advanceCycle(S, s.date); stopTimer(); save(); scheduleSync(800);
+  if (mode === 'partial') { s.partial = true; toast('已保存，下次還是' + DAY_NAME[s.day]); } else advanceCycle(S, s.date);
+  stopTimer(); save(); scheduleSync(800);
   openSheet('summary', sheetSummary(s.id)); render();
 };
 A.cancelSession = async () => { if (!(await confirmBox('放棄這次紀錄？已記錄的組數會全部刪除。', '放棄', true))) return; const s = liveSession(); S.sets = S.sets.filter(x => x.sid !== s.id); S.sessions = S.sessions.filter(x => x !== s); stopTimer(); save(); render(); };
@@ -1124,7 +1189,8 @@ A.saveCustomEx = () => {
 A.delCustomEx = async v => {
   if (S.sets.some(x => x.ex === v) && !(await confirmBox('這個動作有訓練紀錄，刪除後紀錄會一起刪掉。確定？', '刪除', true))) return;
   S.customEx = S.customEx.filter(x => x.id !== v); S.sets = S.sets.filter(x => x.ex !== v);
-  for (const d of ['push', 'pull', 'legs']) S.settings.templates[d] = S.settings.templates[d].map(sl => sl.filter(x => x !== v)).filter(sl => sl.length);
+  for (const d of ['push', 'pull', 'legs']) S.settings.templates[d] = S.settings.templates[d].map(sl => ({ ids: slotIds(sl).filter(x => x !== v), sets: sl.sets || 0 })).filter(sl => sl.ids.length);
+  delete (S.rxu || {})[v];
   buildExMap(S); save(); closeSheet('ex:' + v); render();
 };
 A.libDay = v => { UI.libDay = v; render(); };
@@ -1231,17 +1297,37 @@ A.saveGymName = v => {
 };
 A.gymDel = async v => { if (!(await confirmBox('刪除這間健身房？訓練紀錄會保留。', '刪除', true))) return; S.gyms = S.gyms.filter(g => g.id !== v); if (S.settings.activeGym === v) S.settings.activeGym = S.gyms[0].id; save(); refreshSheet('gyms'); };
 A.tplMove = v => { const [d, i] = v.split(':'); const L = S.settings.templates[d]; const k = +i; if (k > 0) { [L[k - 1], L[k]] = [L[k], L[k - 1]]; save(); refreshSheet('tpl'); } };
-A.tplDel = async v => { const [d, i] = v.split(':'); S.settings.templates[d].splice(+i, 1); save(); refreshSheet('tpl'); };
+A.tplDel = async v => { const [d, i] = v.split(':'); const e = EXMAP[slotIds(S.settings.templates[d][+i])[0]]; if (!(await confirmBox('從' + DAY_NAME[d] + '移除「' + (e ? e.name : '') + '」？', '移除', true))) return; S.settings.templates[d].splice(+i, 1); save(); refreshSheet('tpl'); };
+A.tplRx = v => { const [d, i] = v.split(':'); const id = slotIds(S.settings.templates[d][+i])[0]; openSheet('rx', sheetRxEdit(id, { d, i: +i })); };
+A.exRx = v => openSheet('rx', sheetRxEdit(v, null));
+A.rxStep = v => { const [k, n] = v.split(':'); const el = $('#rx-' + k); el.value = Math.max(1, Math.min(8, (parseInt(el.value, 10) || 0) + (+n))); };
+A.rxRest = (v, el) => { $('#rx-rest').value = v; $$('[data-a="rxRest"]').forEach(c => c.classList.toggle('on', c === el)); };
+A.rxSave = v => {
+  const [id, d, i] = v.split(':'); const lo = parseInt($('#rx-lo').value, 10), hi = parseInt($('#rx-hi').value, 10), rest = parseInt($('#rx-rest').value, 10);
+  const warn = t => { $('#rx-warn').innerHTML = '<div class="note warn small">' + t + '</div>'; };
+  if (!(lo > 0) || !(hi >= lo)) return warn('最多次數要大於或等於最少次數');
+  if (!(rest >= 15 && rest <= 600)) return warn('休息時間請填 15–600 秒');
+  S.rxu = S.rxu || {}; const d0 = DATA.rx[id] || []; const u = {};
+  if (lo !== d0[1]) u.lo = lo; if (hi !== d0[2]) u.hi = hi; if (rest !== d0[5]) u.rest = rest;
+  if (Object.keys(u).length) S.rxu[id] = u; else delete S.rxu[id];
+  if (d) { const sets = parseInt($('#rx-sets').value, 10); if (sets > 0 && sets <= 8) S.settings.templates[d][+i].sets = sets; }
+  save(); closeSheet('rx'); rerender(); toast('已儲存');
+};
+A.rxDefault = v => {
+  const [id, d, i] = v.split(':'); delete (S.rxu || {})[id];
+  if (d) { const def = (DATA.templates[d] || []).find(sl => sl.ids[0] === id); S.settings.templates[d][+i].sets = def ? def.sets : 0; }
+  save(); closeSheet('rx'); rerender(); toast('已恢復預設');
+};
 A.tplSwap = v => {
   const [d, i] = v.split(':'); const slot = S.settings.templates[d][+i]; UI.pickQ = '';
-  openSheet('pick', sheetPickEx('換成', x => x.id !== slot[0], nid => { S.settings.templates[d][+i] = [nid].concat(slot.filter(x => x !== nid)); save(); closeSheet('pick'); refreshSheet('tpl'); }));
+  openSheet('pick', sheetPickEx('換成', x => x.id !== slotIds(slot)[0], nid => { S.settings.templates[d][+i] = { ids: [nid].concat(slotIds(slot).filter(x => x !== nid)), sets: 0 }; save(); closeSheet('pick'); refreshSheet('tpl'); }));
 };
-A.tplAdd = d => { UI.pickQ = ''; openSheet('pick', sheetPickEx('加入' + DAY_NAME[d], x => !S.settings.templates[d].some(sl => sl[0] === x.id), nid => { S.settings.templates[d].push([nid]); save(); closeSheet('pick'); refreshSheet('tpl'); })); };
-A.tplReset = async () => { if (!(await confirmBox('恢復預設課表？你自己的修改會被取代。', '恢復', true))) return; S.settings.templates = defaultTemplates(); save(); refreshSheet('tpl'); };
+A.tplAdd = d => { UI.pickQ = ''; openSheet('pick', sheetPickEx('加入' + DAY_NAME[d], x => !S.settings.templates[d].some(sl => slotIds(sl)[0] === x.id), nid => { S.settings.templates[d].push({ ids: [nid], sets: 0 }); save(); closeSheet('pick'); refreshSheet('tpl'); toast('已加入，可以按「調整」改組數'); })); };
+A.tplReset = async () => { if (!(await confirmBox('恢復預設課表？你自己的修改會被取代。', '恢復', true))) return; S.settings.templates = defaultTemplates(); S.settings.tplUpgraded = false; save(); refreshSheet('tpl'); };
 A.cycSet = v => { const c = S.settings.cycle; c.idx = ORDER.indexOf(v); c.restOn = null; save(); rerender(); };
 A.cycRound = () => { const r = parseInt($('#cyc-r').value, 10); if (r > 0) { S.settings.cycle.round = r; save(); rerender(); toast('已儲存'); } };
 A.togPrefer = () => { S.settings.preferMachines = !S.settings.preferMachines; save(); refreshSheet('training'); };
-A.saveTraining = () => { const r = parseInt($('#ts-rest').value, 10); const b = parseFloat($('#ts-bar').value); if (r >= 15 && r <= 600) S.settings.restSec = r; if (b >= 0 && b <= 40) S.settings.barKg = b; save(); closeSheet('training'); refreshSheet('settings'); toast('已儲存'); };
+A.saveTraining = () => { const b = parseFloat($('#ts-bar').value); if (b >= 0 && b <= 40) S.settings.barKg = b; save(); closeSheet('training'); refreshSheet('settings'); toast('已儲存'); };
 A.togHas = () => { S.supp.has = !S.supp.has; save(); refreshSheet('supp'); };
 A.togOutdoor = () => { S.settings.outdoorWork = !S.settings.outdoorWork; save(); refreshSheet('supp'); };
 A.saveSupp = () => {

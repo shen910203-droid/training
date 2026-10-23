@@ -68,7 +68,7 @@ with sync_playwright() as p:
     # 課表編輯
     pg.evaluate("A.settings(); A.setTemplates();"); pg.wait_for_timeout(200)
     before=pg.evaluate("S.settings.templates.push.length")
-    pg.locator('.sheet-wrap').last.locator('[data-a="tplDel"]').first.click(); pg.wait_for_timeout(150)
+    pg.locator('.sheet-wrap').last.locator('[data-a="tplDel"]').first.click(); pg.wait_for_timeout(150); pg.locator('.dialog [data-r="1"]').click(); pg.wait_for_timeout(150)
     ok(pg.evaluate("S.settings.templates.push.length")==before-1,'tpl delete')
     # 刷新後仍在
     pg.reload(wait_until='domcontentloaded'); pg.wait_for_timeout(800)

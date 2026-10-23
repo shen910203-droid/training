@@ -38,11 +38,12 @@ const MUSCLE_NAME = {
   hamstring: '腿後肌', gluteal: '臀部', adductors: '內收肌', calves: '小腿', tibialis: '脛前肌'
 };
 const PHASES = {
-  1: { name: '適應期', sets: 3, c: [10, 12], i: [12, 15], rir: '每組留 2–3 下' },
-  2: { name: '增肌期', sets: 4, c: [8, 10], i: [10, 12], rir: '每組留 1–2 下' },
-  3: { name: '力量期', sets: 4, c: [6, 8], i: [10, 12], rir: '最後一組可做到力竭' },
-  4: { name: '減量週', sets: 2, c: [8, 10], i: [10, 12], rir: '輕鬆做，重量打 9 折' }
+  1: { name: '適應期', rir: '適應期：次數比平常多 2 下、每組多留 1 下，先把姿勢練穩', short: '次數 +2、多留 1 下、不力竭' },
+  2: { name: '增肌期', rir: '增肌期：照每個動作的建議次數和留幾下', short: '照每個動作的建議' },
+  3: { name: '力量期', rir: '力量期：主要動作次數少 2 下、重量加重', short: '複合動作次數 −2、加重' },
+  4: { name: '減量週', rir: '減量週：組數減半、重量打 9 折、不做到力竭', short: '組數減半、重量 ×0.9' }
 };
+const FAIL_TEXT = { no: '不要做到力竭', last: '最後一組可以做到力竭', must: '最後一組要做到力竭' };
 const RIR_OPTS = [['0-1', '0–1'], ['2-3', '2–3'], ['4-5', '4–5'], ['6+', '6+']];
 const CAL_FACTOR = { '6+': 1.2, '4-5': 1.1, '2-3': 1, '0-1': 0.95 };
 
@@ -64,7 +65,7 @@ function blankState() {
     },
     gyms: [], sessions: [], sets: [], weights: [], foods: [], foodlog: [], water: {}, creatine: {},
     supp: { has: false, name: '高蛋白', scoopG: 30, kcal: 120, p: 24, c: 3, f: 1.5, milkMl: 300, milkKcal: 64, milkP: 3.2, milkC: 4.8, milkF: 3.6 },
-    targets: [], measures: [], photos: [], exu: {}, customEx: [], cardio: [], blobs: {}
+    targets: [], measures: [], photos: [], exu: {}, customEx: [], cardio: [], blobs: {}, rxu: {}
   };
 }
 
@@ -86,8 +87,32 @@ function exAvailable(e, gym) {
   return e.eq.every(q => gym.equip.includes(q));
 }
 function activeGym(S) { return S.gyms.find(g => g.id === S.settings.activeGym) || S.gyms[0] || null; }
-function repRange(e, ph) { return e.t === 'i' ? ph.i : ph.c; }
-function setsFor(e, ph) { return e.t === 'i' ? Math.min(ph.sets, 3) : ph.sets; }
+/* 處方：基本值（動作預設＋你的修改）→ 依階段調整 */
+function baseRx(S, e) {
+  const d = (DATA.rx && DATA.rx[e.id]) || (e.t === 'c' ? [3, 8, 12, '1–2', 'last', 120] : [3, 10, 15, '0–1', 'must', 75]);
+  const b = { sets: d[0], lo: d[1], hi: d[2], rir: d[3], fail: d[4], rest: d[5] };
+  const u = (S.rxu || {})[e.id];
+  if (u) { for (const k of ['lo', 'hi', 'rest']) if (u[k] > 0) b[k] = u[k]; }
+  return b;
+}
+function rxFor(S, e, ph, slotSets) {
+  const b = baseRx(S, e); const r = Object.assign({}, b);
+  if (slotSets > 0) r.sets = slotSets;
+  const isTime = e.load === 'time';
+  if (ph.n === 1) {
+    if (!isTime) { r.lo += 2; r.hi += 2; }
+    r.rir = addRir(b.rir, 1); r.fail = b.fail === 'must' ? 'last' : 'no';
+  } else if (ph.n === 3) {
+    if (e.t === 'c' && !isTime) { r.lo = Math.max(4, r.lo - 2); r.hi = Math.max(r.lo + 1, r.hi - 2); r.rest = Math.max(r.rest, 150); }
+  } else if (ph.n === 4) {
+    r.sets = Math.max(1, Math.ceil(r.sets / 2)); r.fail = 'no'; r.rir = '3';
+  }
+  return r;
+}
+function addRir(t, n) { const m = String(t).match(/(\d+)(?:–(\d+))?/); if (!m) return t; const a = +m[1] + n, b = m[2] ? +m[2] + n : null; return b ? a + '–' + b : String(a); }
+function repRange(e, ph, S0, slotSets) { const r = rxFor(S0 || S, e, ph, slotSets); return [r.lo, r.hi]; }
+function sessionRx(S, s, e) { return rxFor(S, e, phaseOf(s.round), (s.psets || {})[e.id]); }
+function slotIds(slot) { return Array.isArray(slot) ? slot : (slot.ids || []); }
 
 function defaultTemplates() { return JSON.parse(JSON.stringify(DATA.templates)); }
 function dayPlan(S, day) {
@@ -95,10 +120,19 @@ function dayPlan(S, day) {
   const tpl = (S.settings.templates || DATA.templates)[day] || [];
   const out = [];
   for (const slot of tpl) {
-    const cands = slot.map(id => EXMAP[id]).filter(Boolean);
+    const cands = slotIds(slot).map(id => EXMAP[id]).filter(Boolean);
     let pick = cands.find(e => exAvailable(e, gym) && !(S.exu[e.id] && S.exu[e.id].pain));
     if (!pick) pick = cands.find(e => exAvailable(e, gym));
     if (pick && !out.includes(pick.id)) out.push(pick.id);
+  }
+  return out;
+}
+function dayPlanSets(S, day) {
+  const gym = activeGym(S); const tpl = (S.settings.templates || DATA.templates)[day] || []; const out = {};
+  for (const slot of tpl) {
+    const cands = slotIds(slot).map(id => EXMAP[id]).filter(Boolean);
+    let pick = cands.find(e => exAvailable(e, gym) && !(S.exu[e.id] && S.exu[e.id].pain)) || cands.find(e => exAvailable(e, gym));
+    if (pick && !(pick.id in out)) out[pick.id] = slot.sets || 0;
   }
   return out;
 }
@@ -188,7 +222,8 @@ function bestE1rm(e, sets) {
 function suggestion(S, e, ph, sid) {
   const gym = activeGym(S);
   const hist = exHistory(S, e.id, { excludeSid: sid, gymId: gym ? gym.id : null });
-  const [lo, hi] = repRange(e, ph);
+  const ss = sid ? sessionById(S, sid) : null;
+  const rr = rxFor(S, e, ph, ss && ss.psets ? ss.psets[e.id] : 0); const lo = rr.lo, hi = rr.hi;
   if (!hist.length) {
     const any = exHistory(S, e.id, { excludeSid: sid });
     if (any.length) return { type: 'gym', text: '這間健身房第一次做這個動作。機台不同，重量不能直接比，先用試重找新的基準。', cal: true };
@@ -401,4 +436,4 @@ function aiSummary(S) {
   L.push('我的問題：');
   return L.join('\n');
 }
-if (typeof module !== 'undefined') module.exports = { ymd, addDays, diffDays, phaseOf, calcTargets, linreg, adaptive, blankState, totalWeight, e1rm, suggestion, checkPR, syncCycle, advanceCycle, skipRest, dayPlan, buildExMap, weekReview, muscleWeek, dayTotals, calNext, prefill, waterGoal, setVolume, exHistory, topSet, aiSummary };
+if (typeof module !== 'undefined') module.exports = { rxFor, baseRx, addRir, ymd, addDays, diffDays, phaseOf, calcTargets, linreg, adaptive, blankState, totalWeight, e1rm, suggestion, checkPR, syncCycle, advanceCycle, skipRest, dayPlan, buildExMap, weekReview, muscleWeek, dayTotals, calNext, prefill, waterGoal, setVolume, exHistory, topSet, aiSummary };

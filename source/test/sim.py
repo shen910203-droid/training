@@ -34,21 +34,22 @@ with sync_playwright() as p:
         ok(pg.evaluate("UI.openEx")==eid, f'{lab} open should be {eid} got '+str(pg.evaluate("UI.openEx")))
         isTime=pg.evaluate(f"EXMAP['{eid}'].load==='time'")
         base=20+k*5
-        for j,(rir) in enumerate(['6+','4-5','2-3']):
+        T=pg.evaluate(f"sessionRx(S,liveSession(),EXMAP['{eid}']).sets")
+        for j,(rir) in enumerate((['6+','4-5','2-3','2-3','2-3'])[:T]):
             if not isTime: pg.fill(f'#rw-{eid}', str(base if j==0 else pg.locator(f'#rw-{eid}').input_value()))
             pg.fill(f'#rr-{eid}','10')
             pg.locator(f'[data-a="saveRow"][data-v="{eid}"]').click(); pg.wait_for_timeout(120)
-            if j<2 and pg.locator(f'[data-a="rowRir"]').count():
+            if j<T-1 and pg.locator(f'[data-a="rowRir"]').count():
                 pg.locator(f'[data-a="rowRir"][data-v$=":{rir}"]').first.click(); pg.wait_for_timeout(120)
                 if j==0 and not isTime:
                     nv=pg.locator(f'#rw-{eid}').input_value(); notes.append(f'{lab} {eid} cal next {nv}')
             if k==0 and j==0: chk(pg,f'{lab}_s1_set1')
-            if j<2:
+            if j<T-1:
                 pg.wait_for_timeout(450)
                 vis=pg.evaluate(f"(()=>{{const r=document.getElementById('rr-{eid}').getBoundingClientRect(); const lim=innerHeight-document.getElementById('nav').offsetHeight-(document.getElementById('timer').hidden?0:document.getElementById('timer').offsetHeight); return r.bottom<=lim+2 && r.top>=0;}})()")
                 ok(vis, f'{lab} {eid} row hidden after set {j+1}')
         n=pg.evaluate(f"S.sets.filter(x=>x.ex==='{eid}'&&x.sid===liveSession().id).length")
-        ok(n==3,f'{lab} {eid} sets {n}')
+        ok(n==T,f'{lab} {eid} sets {n}/{T}')
         if k==0: chk(pg,f'{lab}_s1_3sets')
         pg.locator(f'[data-a="doneEx"][data-v="{eid}"]').click(); pg.wait_for_timeout(500)
         if k<len(plan)-1:
@@ -62,7 +63,7 @@ with sync_playwright() as p:
     pg.locator(f'[data-a="addRow"][data-v="{plan[0]}"]').click(); pg.wait_for_timeout(150)
     ok(pg.locator(f'#rw-{plan[0]}').count()==1,f'{lab} extra row input')
     pg.locator(f'[data-a="saveRow"][data-v="{plan[0]}"]').click(); pg.wait_for_timeout(150)
-    ok(pg.evaluate(f"S.sets.filter(x=>x.ex==='{plan[0]}').length")==4,f'{lab} extra set saved')
+    ok(pg.evaluate(f"S.sets.filter(x=>x.ex==='{plan[0]}').length")==pg.evaluate(f"sessionRx(S,liveSession(),EXMAP['{plan[0]}']).sets")+1,f'{lab} extra set saved')
     pg.locator('[data-a="editSet"]').first.click(); pg.wait_for_timeout(200); chk(pg,f'{lab}_edit'); pg.fill('#es-r','12'); pg.locator('[data-a="saveEditSet"]').click(); pg.wait_for_timeout(150)
     pg.locator(f'[data-a="exMenu"][data-v="{plan[0]}"]').click(); pg.wait_for_timeout(200); chk(pg,f'{lab}_menu')
     pg.locator('.sheet-wrap').last.locator('[data-a="closeSheet"]').click(); pg.wait_for_timeout(150)
