@@ -300,3 +300,20 @@ button.srow { all: unset; display: contents; cursor: pointer; }
 
 .btn.choice { flex-direction: column; align-items: center; height: auto; min-height: 52px; padding: 10px 14px; gap: 2px; white-space: normal; text-align: center; line-height: 1.3; }
 .btn.choice .xs { display: block; font-weight: 400; opacity: .8; white-space: normal; }
+
+.daylock { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--ok-soft, rgba(98,192,143,.12)); border: 1px solid rgba(98,192,143,.35); }
+.daylock svg { color: var(--ok); flex: none; }
+.daylock.skip { background: var(--s2); border-color: var(--line); }
+.daylock .btn { flex: none; }
+.fhist summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+.fhist summary::-webkit-details-marker { display: none; }
+.fhist summary > svg { transform: rotate(90deg); transition: transform .2s; flex: none; }
+.fhist[open] summary > svg { transform: rotate(-90deg); }
+.fhist .fh-head, .fhist .fh-row { display: grid; grid-template-columns: 1.15fr 1fr 1fr 1.05fr; gap: 6px; align-items: center; }
+.fhist .fh-head { margin-top: 12px; padding: 0 8px 6px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--line); }
+.fhist .fh-row { width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--tx); padding: 8px; font: inherit; font-size: 14px; min-height: 48px; border-radius: 8px; }
+.fhist .fh-row.on { background: var(--s2); }
+.fhist .fh-row.off .num { color: var(--mu); }
+.fhist .fh-row .num { font-family: var(--fd); font-size: 16px; line-height: 1.2; }
+.fhist .fh-row .tag { white-space: nowrap; font-size: 11px; }
+.fhist .fh-row .tag svg { width: 11px; height: 11px; }

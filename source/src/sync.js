@@ -5,7 +5,7 @@
  */
 const SYNC = { cfg: null, meta: null, busy: false, pending: 0, status: 'off', msg: '', timer: null, photoQ: {} };
 const ARR_COLS = ['sessions', 'sets', 'foodlog', 'foods', 'measures', 'photos', 'cardio', 'customEx', 'gyms', 'targets'];
-const MAP_COLS = ['water', 'creatine', 'exu', 'blobs', 'rxu'];
+const MAP_COLS = ['water', 'creatine', 'exu', 'blobs', 'rxu', 'daydone'];
 const SINGLES = ['profile', 'supp', 'settings'];
 const LOCAL_SETTINGS = ['lastBackup'];
 const IS_PAGES = typeof window !== 'undefined' && window.APP_MODE === 'pages';

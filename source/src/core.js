@@ -63,7 +63,7 @@ function blankState() {
       cycle: { idx: 0, round: 1, restOn: null }, activeGym: null, templates: null,
       favFoods: [], lastBackup: null, waterGoalManual: null
     },
-    gyms: [], sessions: [], sets: [], weights: [], foods: [], foodlog: [], water: {}, creatine: {},
+    gyms: [], sessions: [], sets: [], weights: [], foods: [], foodlog: [], water: {}, creatine: {}, daydone: {},
     supp: { has: false, name: '高蛋白', scoopG: 30, kcal: 120, p: 24, c: 3, f: 1.5, milkMl: 300, milkKcal: 64, milkP: 3.2, milkC: 4.8, milkF: 3.6 },
     targets: [], measures: [], photos: [], exu: {}, customEx: [], cardio: [], blobs: {}, rxu: {}
   };
@@ -348,7 +348,7 @@ function adaptive(S, today) {
   }
   const start = addDays(today, -27);
   const ws = S.weights.filter(w => w.date >= start && w.date <= today).sort((a, b) => a.date.localeCompare(b.date));
-  const logged = [...new Set(S.foodlog.filter(f => f.date >= start && f.date < today).map(f => f.date))];
+  const logged = validFoodDays(S, start, addDays(today, -1), today).map(d => d.date);
   const need = [];
   if (ws.length < 5) need.push('體重紀錄還差 ' + (5 - ws.length) + ' 筆');
   if (logged.length < 14) need.push('飲食紀錄天數還差 ' + (14 - logged.length) + ' 天');
@@ -379,6 +379,66 @@ function allFoods(S) {
   return S.foods.concat(b);
 }
 
+/* ===== 飲食完整度與長期統計 ===== */
+function targetOn(S, date) {
+  let t = null; for (const x of S.targets) { if (!x.date || x.date <= date) t = x; }
+  return t || (S.targets[0] || null);
+}
+// 一天的狀態：done=按了記錄完成（鎖定）；skip=手動標記沒記完；suspect=熱量不到目標一半、可能沒記完
+function dayStatus(S, date, today) {
+  const tot = dayTotals(S, date); const t = targetOn(S, date);
+  const logged = S.foodlog.some(f => f.date === date);
+  const m = (S.daydone || {})[date]; const st = m ? m.s : null;
+  const done = st === 'done', skip = st === 'skip';
+  const suspect = logged && !done && !skip && !!t && tot.kcal < t.kcal * 0.5;
+  const pending = !done && date === (today || todayStr());
+  const valid = !skip && logged && (done || (!suspect && !pending));
+  const kHit = t ? (S.profile && S.profile.goal === 'cut' ? tot.kcal <= t.kcal * 1.1 && tot.kcal >= t.kcal * 0.8 : tot.kcal >= t.kcal * 0.9) : null;
+  const pHit = t ? tot.p >= t.p * 0.9 : null;
+  return { date, tot, t, logged, done, skip, suspect, pending, valid, kHit, pHit };
+}
+function dayLocked(S, date) { const m = (S.daydone || {})[date]; return !!(m && m.s === 'done'); }
+function foodHistory(S, today, n) {
+  const out = []; for (let i = 0; i < (n || 14); i++) out.push(dayStatus(S, addDays(today, -i), today));
+  const v = out.filter(d => d.valid);
+  return { days: out, valid: v.length, kHits: v.filter(d => d.kHit).length, pHits: v.filter(d => d.pHit).length,
+    suspect: out.filter(d => d.suspect).length };
+}
+function validFoodDays(S, from, to, today) {
+  const r = []; for (let d = from; d <= to; d = addDays(d, 1)) { const x = dayStatus(S, d, today); if (x.valid) r.push(x); } return r;
+}
+// 長期提示：只挑會影響結果的
+function foodTips(S, today) {
+  const tips = []; const h = foodHistory(S, today, 14); const v = h.days.filter(d => d.valid && d.t);
+  // 連續蛋白質不足（從最近往回數）
+  let streak = 0, short = 0; for (const d of v) { if (d.pHit) break; streak++; short += d.t.p - d.tot.p; }
+  if (streak >= 3) tips.push({ lvl: 'warn', k: 'pstreak', text: '蛋白質已經連續 ' + streak + ' 天沒達標，平均每天少 ' + Math.round(short / streak) + 'g。' + (S.supp && S.supp.has ? '每天多一匙高蛋白大約補 ' + Math.round(S.supp.p) + 'g。' : '加雞蛋、雞胸肉、牛奶最快補上。') });
+  else if (v.length >= 5 && h.pHits / v.length < 0.6) tips.push({ lvl: 'warn', k: 'prate', text: '近 14 天蛋白質只有 ' + h.pHits + '/' + v.length + ' 天達標。肌肉是每天累積的，蛋白質比碳水重要。' });
+  // 熱量達標率（增肌）
+  if (S.profile && S.profile.goal === 'bulk' && v.length >= 5 && h.kHits / v.length < 0.5) {
+    const avg = Math.round(v.reduce((a, d) => a + d.tot.kcal, 0) / v.length);
+    tips.push({ lvl: 'warn', k: 'krate', text: '近 14 天熱量只有 ' + h.kHits + '/' + v.length + ' 天達標，平均 ' + avg + ' 大卡。增肌吃不夠是最常見的卡關原因。' });
+  }
+  // 週末 vs 平日
+  const wk = v.filter(d => [0, 6].includes(new Date(d.date + 'T12:00:00').getDay())), wd = v.filter(d => ![0, 6].includes(new Date(d.date + 'T12:00:00').getDay()));
+  if (wk.length >= 2 && wd.length >= 3) {
+    const a = wk.reduce((x, d) => x + d.tot.kcal, 0) / wk.length, b = wd.reduce((x, d) => x + d.tot.kcal, 0) / wd.length;
+    if (Math.abs(a - b) >= 500) tips.push({ lvl: 'brass', k: 'weekend', text: '週末平均比平日' + (a < b ? '少' : '多') + ' ' + Math.round(Math.abs(a - b)) + ' 大卡（' + Math.round(a) + ' vs ' + Math.round(b) + '）。' + (a < b ? '週末作息不同容易少吃一餐。' : '') });
+  }
+  // 練前一天碳水太低
+  const from = addDays(today, -13);
+  let lowC = 0, cnt = 0;
+  for (const se of S.sessions.filter(x => x.end && x.date >= from && x.date <= today)) {
+    const pd = dayStatus(S, addDays(se.date, -1), today); if (!pd.valid || !pd.t) continue; cnt++;
+    if (pd.tot.c < pd.t.c * 0.6) lowC++;
+  }
+  if (lowC >= 2) tips.push({ lvl: 'brass', k: 'carb', text: '最近有 ' + lowC + ' 次訓練的前一天碳水不到目標的 6 成。碳水是訓練的燃料，練前一天和當天多吃點飯或麵，重量會比較好推。' });
+  // 漏記
+  const s7 = h.days.slice(0, 7).filter(d => d.suspect).length;
+  if (s7 >= 2) tips.push({ lvl: '', k: 'suspect', text: '最近 7 天有 ' + s7 + ' 天熱量不到目標一半，可能沒記完，這些天不算進平均。記完一天記得按「記錄完成」。' });
+  return tips;
+}
+
 /* ===== 統計 ===== */
 function muscleWeek(S, today) {
   const from = addDays(today, -6);
@@ -396,7 +456,7 @@ function weekReview(S, today) {
   const from = addDays(today, -6);
   const t = currentTarget(S);
   const days = []; for (let i = 0; i < 7; i++) days.push(addDays(from, i));
-  const logged = days.filter(d => S.foodlog.some(f => f.date === d));
+  const logged = days.filter(d => dayStatus(S, d, today).valid);
   let kc = 0, pr = 0; for (const d of logged) { const x = dayTotals(S, d); kc += x.kcal; pr += x.p; }
   const sess = S.sessions.filter(s => s.end && s.date >= from && s.date <= today);
   const sids = new Set(sess.map(s => s.id));
@@ -436,4 +496,4 @@ function aiSummary(S) {
   L.push('我的問題：');
   return L.join('\n');
 }
-if (typeof module !== 'undefined') module.exports = { rxFor, baseRx, addRir, ymd, addDays, diffDays, phaseOf, calcTargets, linreg, adaptive, blankState, totalWeight, e1rm, suggestion, checkPR, syncCycle, advanceCycle, skipRest, dayPlan, buildExMap, weekReview, muscleWeek, dayTotals, calNext, prefill, waterGoal, setVolume, exHistory, topSet, aiSummary };
+if (typeof module !== 'undefined') module.exports = { dayStatus, foodHistory, foodTips, targetOn, dayLocked, rxFor, baseRx, addRir, ymd, addDays, diffDays, phaseOf, calcTargets, linreg, adaptive, blankState, totalWeight, e1rm, suggestion, checkPR, syncCycle, advanceCycle, skipRest, dayPlan, buildExMap, weekReview, muscleWeek, dayTotals, calNext, prefill, waterGoal, setVolume, exHistory, topSet, aiSummary };

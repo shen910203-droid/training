@@ -100,7 +100,7 @@ const IC = {
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>', check: '<path d="M5 12l5 5L20 7"/>',
   chev: '<path d="M9 6l6 6-6 6"/>', back: '<path d="M15 6l-6 6 6 6"/>', left: '<path d="M15 6l-6 6 6 6"/>', right: '<path d="M9 6l6 6-6 6"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', play: '<path d="M7 5l12 7-12 7z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', play: '<path d="M7 5l12 7-12 7z"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>', copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
@@ -349,8 +349,7 @@ function coachTips(today) {
     tips.push(N('brass', '過去 4 週平均吃 ' + ad.avgIn + ' 大卡，體重每週 ' + (ad.weekKg >= 0 ? '+' : '') + ad.weekKg + 'kg。估計你實際每天消耗約 ' + ad.tdeeEst + ' 大卡，建議目標從 ' + ad.cur + ' 改成 <b>' + ad.newKcal + '</b> 大卡。', '<div style="margin-top:8px"><button class="btn sm pri" data-a="applyAdaptive">套用新目標</button></div>'));
   }
   const r = weekReview(S, today);
-  if (t && r.loggedDays >= 3 && r.avgP != null && r.avgP < t.p * 0.8) tips.push(N('warn', '最近 7 天平均蛋白質 ' + r.avgP + 'g，只有目標的 ' + Math.round(r.avgP / t.p * 100) + '%。' + (S.supp.has ? '每天多喝一份高蛋白最快補上。' : '可以加雞蛋、雞胸肉、牛奶或高蛋白。')));
-  if (t && r.loggedDays >= 3 && r.avgKcal != null && S.profile.goal === 'bulk' && r.avgKcal < t.kcal * 0.85) tips.push(N('warn', '最近平均 ' + r.avgKcal + ' 大卡，比目標少 ' + (t.kcal - r.avgKcal) + '。增肌吃不夠是最常見的卡關原因，牛奶、燕麥、花生醬最容易補熱量。'));
+  for (const x of foodTips(S, today)) tips.push(N(x.lvl, x.text));
   const lw = latestWeight(S);
   if (!lw || diffDays(lw.date, today) >= 10) tips.push(N('', (lw ? '已經 ' + diffDays(lw.date, today) + ' 天沒量體重。' : '還沒有體重紀錄。') + '下一個休息日早上量一下。'));
   const pain = Object.keys(S.exu).filter(k => S.exu[k].pain && EXMAP[k]);
@@ -476,21 +475,54 @@ const IC_MORE = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle c
 /* ---------- 飲食 ---------- */
 const MEALS = [['b', '早餐'], ['l', '午餐'], ['d', '晚餐'], ['s', '點心']];
 function vFood() {
-  const date = UI.foodDate || todayStr(); const t = currentTarget(S); const tot = dayTotals(S, date);
-  const isToday = date === todayStr();
+  const date = UI.foodDate || todayStr(); const t = targetOn(S, date) || currentTarget(S); const tot = dayTotals(S, date);
+  const isToday = date === todayStr(); const ds = dayStatus(S, date); const lock = ds.done;
   let h = '<div class="top"><div><div class="sub">飲食紀錄</div><h1>飲食</h1></div><div class="row" style="gap:6px"><button class="icon-btn" data-a="foodDay" data-v="-1" aria-label="前一天">' + ic('left') + '</button><button class="icon-btn" data-a="foodDay" data-v="1" aria-label="後一天"' + (isToday ? ' disabled style="opacity:.3"' : '') + '>' + ic('right') + '</button></div></div><div class="stack">';
   h += '<div class="card"><div class="row between"><h2 style="margin:0">' + (isToday ? '今天 ' : '') + mdLabel(date) + '</h2>' + (isToday ? '' : '<button class="chip" data-a="foodToday">回到今天</button>') + '</div>';
   if (t) h += '<div class="row" style="gap:16px;margin-top:10px">' + ring(tot.kcal, t.kcal, '<div class="num" style="font-size:26px;font-weight:600;line-height:1">' + Math.round(tot.kcal) + '</div><div class="xs muted">/ ' + t.kcal + '</div>') + '<div class="grow stack" style="gap:8px">' + macroLine('蛋白', tot.p, t.p) + macroLine('碳水', tot.c, t.c) + macroLine('脂肪', tot.f, t.f) + '</div></div>';
-  h += '<div class="small muted" style="margin-top:10px">數字是約略值。沒有食物秤沒關係，前後估法一致，app 會用體重趨勢自動修正。</div></div>';
+  h += dayDoneBlock(ds, isToday) + '</div>';
+  h += foodHistCard();
   for (const [m, name] of MEALS) {
     const items = S.foodlog.filter(x => x.date === date && x.meal === m);
     const mt = items.reduce((a, x) => a + x.kcal, 0), mp = items.reduce((a, x) => a + x.p, 0);
-    h += '<div class="card"><div class="row between"><div><h3>' + name + '</h3><div class="small muted">' + Math.round(mt) + ' 大卡・蛋白 ' + Math.round(mp) + 'g</div></div><button class="btn sm" data-a="addFood" data-v="' + m + '">' + ic('plus') + '新增</button></div>';
-    if (items.length) h += '<div class="list" style="margin-top:6px">' + items.map(x => '<button class="li" style="border-left:0;border-right:0;border-bottom:0;background:transparent;width:100%;text-align:left" data-a="editLog" data-v="' + x.id + '"><div class="grow"><div class="t">' + esc(x.name) + '</div><div class="small muted">' + fmtNum(x.qty) + ' × ' + esc(x.unit) + '</div></div><div style="text-align:right"><div class="num" style="font-size:17px">' + Math.round(x.kcal) + '</div><div class="xs muted">蛋白 ' + fmtNum(x.p) + 'g</div></div></button>').join('') + '</div>';
+    h += '<div class="card"><div class="row between"><div><h3>' + name + '</h3><div class="small muted">' + Math.round(mt) + ' 大卡・蛋白 ' + Math.round(mp) + 'g</div></div>' + (lock ? '' : '<button class="btn sm" data-a="addFood" data-v="' + m + '">' + ic('plus') + '新增</button>') + '</div>';
+    if (items.length) h += '<div class="list" style="margin-top:6px">' + items.map(x => '<button class="li" style="border-left:0;border-right:0;border-bottom:0;background:transparent;width:100%;text-align:left"' + (lock ? ' disabled' : ' data-a="editLog" data-v="' + x.id + '"') + '><div class="grow"><div class="t">' + esc(x.name) + '</div><div class="small muted">' + fmtNum(x.qty) + ' × ' + esc(x.unit) + '</div></div><div style="text-align:right"><div class="num" style="font-size:17px">' + Math.round(x.kcal) + '</div><div class="xs muted">蛋白 ' + fmtNum(x.p) + 'g</div></div></button>').join('') + '</div>';
     h += '</div>';
   }
   h += suppCard(date);
   return h + '</div>';
+}
+function dayDoneBlock(ds, isToday) {
+  const d = ds.date;
+  if (ds.done) return '<div class="daylock"><div class="row" style="gap:8px;min-width:0">' + ic('lock') + '<div><b>已記錄完成</b><div class="xs muted">已鎖定，不會誤改。要補記或修改先解鎖。</div></div></div><button class="btn sm" data-a="dayUnlock" data-v="' + d + '">解鎖修改</button></div>';
+  if (ds.skip) return '<div class="daylock skip"><div><b>這天不算進統計</b><div class="xs muted">已標記「沒記完」，平均和建議不會用這天。</div></div><button class="btn sm" data-a="daySkipOff" data-v="' + d + '">取消</button></div>';
+  if (!ds.logged) return isToday ? '<div class="small muted" style="margin-top:10px">數字是約略值。沒有食物秤沒關係，前後估法一致，app 會用體重趨勢自動修正。</div>' : '<div class="small muted" style="margin-top:10px">這天沒有紀錄，不算進統計。</div>';
+  let h = '';
+  if (ds.suspect && !isToday) h += '<div class="note warn small" style="margin-top:10px">熱量不到目標一半，可能沒記完。這天先不算進平均；如果真的就吃這些，按「記錄完成」就會算進去。</div>';
+  else if (isToday) h += '<div class="small muted" style="margin-top:10px">今天吃完最後一餐再按完成，按了會鎖定，避免之後誤改。</div>';
+  else if (!isToday) h += '<div class="small muted" style="margin-top:10px">這天還沒按「記錄完成」。</div>';
+  h += '<div class="row" style="margin-top:10px;gap:8px"><button class="btn pri grow" data-a="dayDone" data-v="' + d + '">' + ic('check') + (isToday ? '今天記錄完成' : '這天記錄完成') + '</button>' + (isToday ? '' : '<button class="btn" data-a="daySkip" data-v="' + d + '">沒記完</button>') + '</div>';
+  return h;
+}
+function foodHistCard() {
+  const today = todayStr(); const H = foodHistory(S, today, 14);
+  const dd = x => x >= 0 ? '+' + Math.round(x) : '−' + Math.round(-x);
+  const rows = H.days.map(d => {
+    let st;
+    if (d.done) st = '<span class="tag ok">' + ic('lock') + '完成</span>';
+    else if (d.skip) st = '<span class="tag">不算</span>';
+    else if (!d.logged) st = '<span class="xs dim">沒記錄</span>';
+    else if (d.pending) st = '<span class="tag">記錄中</span>';
+    else if (d.suspect) st = '<span class="tag warn">沒記完？</span>';
+    else st = '<span class="xs muted">未按完成</span>';
+    const cell = (v, tg, hit, unit) => d.logged && tg ? '<div class="num">' + Math.round(v) + unit + '</div><div class="xs" style="color:' + (d.pending || !d.valid ? 'var(--dim)' : hit ? 'var(--ok)' : 'var(--warn)') + '">' + (hit ? '✓ ' : '') + dd(v - tg) + '</div>' : '<div class="dim">–</div>';
+    return '<button class="fh-row' + (d.date === (UI.foodDate || today) ? ' on' : '') + (d.valid ? '' : ' off') + '" data-a="foodGo" data-v="' + d.date + '"><div><div class="num">' + d.date.slice(5).replace('-', '/').replace(/^0/, '') + '</div><div class="xs dim">週' + '日一二三四五六'[new Date(d.date + 'T12:00:00').getDay()] + (d.date === today ? '・今天' : '') + '</div></div><div>' + cell(d.tot.kcal, d.t && d.t.kcal, d.kHit, '') + '</div><div>' + cell(d.tot.p, d.t && d.t.p, d.pHit, 'g') + '</div><div>' + st + '</div></button>';
+  }).join('');
+  const tips = foodTips(S, today);
+  return '<details class="card fhist"' + (UI.fhOpen ? ' open' : '') + '><summary><div><h2 style="margin:0">近 14 天</h2><div class="small muted">' + (H.valid ? '蛋白質達標 <b>' + H.pHits + '/' + H.valid + '</b> 天・熱量達標 <b>' + H.kHits + '/' + H.valid + '</b> 天' : '還沒有完整的一天，記完一天按「記錄完成」') + '</div></div>' + ic('chev', 'dim') + '</summary>' +
+    '<div class="fh-head"><div>日期</div><div>熱量</div><div>蛋白質</div><div>狀態</div></div>' + rows +
+    '<div class="xs dim" style="margin-top:8px">統計只算有效的天：按了「記錄完成」，或熱量有到目標一半的過去日子。今天還在記錄中，不算。點一列可以跳到那天。</div>' +
+    (tips.length ? '<div class="stack" style="gap:8px;margin-top:10px">' + tips.map(x => '<div class="note ' + x.lvl + ' small">' + x.text + '</div>').join('') + '</div>' : '') + '</details>';
 }
 function logFood(date, meal, f, qty) {
   qty = +qty || 1;
@@ -890,10 +922,12 @@ function sheetQty(food, meal, logId) {
 
 /* ===== 事件 ===== */
 const A = {};
+const FOOD_EDIT = new Set(['addFood', 'addShake', 'addShakeTo', 'editLog', 'saveLog', 'delLog', 'confirmFood', 'copyMeal', 'quickAdd', 'newFood', 'scanFood', 'saveBarcodeFood', 'pickFood']);
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if (!el || el.disabled) return;
   const fn = A[el.dataset.a]; if (!fn) return;
   e.preventDefault();
+  if (FOOD_EDIT.has(el.dataset.a)) { const d = el.dataset.a === 'addShake' ? todayStr() : (UI.foodDate || todayStr()); if (dayLocked(S, d)) { toast((d === todayStr() ? '今天' : mdLabel(d)) + '已按「記錄完成」，要修改請先到飲食頁按「解鎖修改」'); return; } }
   ensureAudio();
   try { await fn(el.dataset.v, el, e); } catch (err) { console.error(err); toast('發生錯誤：' + (err.message || err)); }
 });
@@ -912,6 +946,7 @@ function searchUpdate(t) {
     const top = UI.sheets[UI.sheets.length - 1]; if (top) patchAfter(t.id, top.render().body);
   }
 }
+document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('fhist')) UI.fhOpen = e.target.open; }, true);
 document.addEventListener('compositionstart', () => { UI.composing = true; });
 document.addEventListener('compositionend', e => { UI.composing = false; searchUpdate(e.target); });
 document.addEventListener('input', e => {
@@ -1214,6 +1249,15 @@ A.libDay = v => { UI.libDay = v; render(); };
 A.libMine = () => { UI.libMine = !UI.libMine; render(); };
 
 /* 飲食 */
+A.foodGo = v => { UI.foodDate = v === todayStr() ? null : v; UI.fhOpen = true; render(); };
+A.dayDone = v => {
+  const ds = dayStatus(S, v);
+  S.daydone[v] = { s: 'done', t: Date.now() }; save(); render();
+  toast(ds.suspect ? '已完成並鎖定（熱量偏低，但會照實算進統計）' : '已完成並鎖定');
+};
+A.dayUnlock = async v => { if (!(await confirmBox('解鎖 ' + mdLabel(v) + ' 的飲食紀錄？改完記得再按一次「記錄完成」。', '解鎖'))) return; delete S.daydone[v]; save(); render(); };
+A.daySkip = v => { S.daydone[v] = { s: 'skip', t: Date.now() }; save(); render(); toast('這天不算進統計'); };
+A.daySkipOff = v => { delete S.daydone[v]; save(); render(); };
 A.foodDay = v => { const d = UI.foodDate || todayStr(); const n = addDays(d, +v); if (n > todayStr()) return; UI.foodDate = n; render(); };
 A.foodToday = () => { UI.foodDate = null; render(); };
 A.addFood = v => { UI.foodTab = 'fav'; UI.foodQ = ''; openSheet('addfood', sheetAddFood(v)); };
