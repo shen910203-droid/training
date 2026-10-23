@@ -1067,13 +1067,13 @@ function confirmBox(msg, okText, danger) {
 /* ===== 面板 ===== */
 function openSheet(id, render, opts) {
   UI.sheets = UI.sheets.filter(s => s.id !== id);
-  UI.sheets.push({ id, render, opts: opts || {} });
+  UI.sheets.push({ id, render, opts: opts || {}, fresh: true });
   drawSheets();
 }
 function closeSheet(id) { if (!id || id === 'scan') { const top = UI.sheets[UI.sheets.length - 1]; if (id === 'scan' || (top && top.id === 'scan')) stopScan(); } UI.sheets = id ? UI.sheets.filter(s => s.id !== id) : UI.sheets.slice(0, -1); drawSheets(); }
 function drawSheets() {
   const layer = $('#layer');
-  $$('.sheet-wrap', layer).forEach(n => n.remove());
+  const keep = {}; $$('.sheet-wrap', layer).forEach(n => { const b = $('.sheet-b', n); if (b) keep[n.dataset.sheet] = b.scrollTop; n.remove(); });
   UI.sheets.forEach((s, i) => {
     const r = s.render();
     const w = document.createElement('div'); w.className = 'sheet-wrap'; w.dataset.sheet = s.id;
@@ -1083,6 +1083,8 @@ function drawSheets() {
       '<div class="sheet-b">' + r.body + '</div>' + (r.foot ? '<div class="sheet-f">' + r.foot + '</div>' : '') + '</div>';
     w.addEventListener('click', e => { if (e.target === w && !s.opts.noClose) closeSheet(s.id); });
     layer.appendChild(w);
+    if (!s.fresh && keep[s.id]) $('.sheet-b', w).scrollTop = keep[s.id];
+    s.fresh = false;
     if (r.after) r.after(w);
   });
   document.body.style.overflow = UI.sheets.length ? 'hidden' : '';
@@ -1820,11 +1822,26 @@ document.addEventListener('click', async e => {
   ensureAudio();
   try { await fn(el.dataset.v, el, e); } catch (err) { console.error(err); toast('發生錯誤：' + (err.message || err)); }
 });
+function patchAfter(id, html) {
+  const live = document.getElementById(id); if (!live) return;
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  const nu = tmp.querySelector('#' + id); if (!nu) return;
+  const P = live.parentNode; while (live.nextSibling) P.removeChild(live.nextSibling);
+  const frag = document.createDocumentFragment(); let n = nu.nextSibling; while (n) { const nx = n.nextSibling; frag.appendChild(n); n = nx; }
+  P.appendChild(frag); hydrateImgs();
+}
+function searchUpdate(t) {
+  if (t.id === 'libq') { UI.libQ = t.value; patchAfter('libq', vLibrary()); }
+  if (t.id === 'foodq' || t.id === 'pickq') {
+    UI[t.id === 'foodq' ? 'foodQ' : 'pickQ'] = t.value;
+    const top = UI.sheets[UI.sheets.length - 1]; if (top) patchAfter(t.id, top.render().body);
+  }
+}
+document.addEventListener('compositionstart', () => { UI.composing = true; });
+document.addEventListener('compositionend', e => { UI.composing = false; searchUpdate(e.target); });
 document.addEventListener('input', e => {
   const t = e.target;
-  if (t.id === 'libq') { UI.libQ = t.value; const pos = t.selectionStart; render(); const n = $('#libq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
-  if (t.id === 'foodq') { UI.foodQ = t.value; refreshKeepFocus('foodq'); }
-  if (t.id === 'pickq') { UI.pickQ = t.value; refreshKeepFocus('pickq'); }
+  if (t.id === 'libq' || t.id === 'foodq' || t.id === 'pickq') { if (!e.isComposing && !UI.composing) searchUpdate(t); }
   if (t.dataset.in === 'ob') { UI.ob[t.dataset.k] = t.value; if (UI.ob.step === 1) obBmi(); }
   if (t.dataset.rk) { const k = t.dataset.rk; const s0 = liveSession(); const e0 = EXMAP[k.split(':')[1]]; const cur = UI.rows[k] || {}; UI.rows[k] = { w: t.dataset.f === 'w' ? t.value : (cur.w != null ? cur.w : (document.getElementById('rw-' + e0.id) || {}).value || ''), reps: t.dataset.f === 'reps' ? t.value : (cur.reps != null ? cur.reps : (document.getElementById('rr-' + e0.id) || {}).value || '') }; }
   if (t.id === 'qty') { const v = parseFloat(t.value); if (v > 0) { UI.qty = v; } }
