@@ -86,6 +86,14 @@ function migrate(st) {
     out.settings.tplVer = 2; out.settings.tplUpgraded = same;
   }
   if (!T) out.settings.tplVer = 2;
+  // 只「加備選」，不改主選、不改組數：沒有 45 度腿推機的健身房自動用坐姿蹬腿機
+  const T2 = out.settings.templates;
+  if (T2) for (const d of Object.keys(T2)) for (const sl of T2[d]) {
+    if (!sl || !Array.isArray(sl.ids)) continue;
+    const add = (after, id) => { const i = sl.ids.indexOf(after); if (i >= 0 && !sl.ids.includes(id)) sl.ids.splice(i + 1, 0, id); };
+    add('leg_press', 'seated_leg_press'); add('leg_press_calf', 'seated_leg_press_calf');
+    if (sl.ids.includes('standing_calf') && !sl.ids.includes('seated_calf')) sl.ids.push('seated_calf');
+  }
   out.schema = 1;
   return out;
 }
@@ -897,7 +905,7 @@ function sheetBackup() {
 function sheetAbout() {
   return {
     title: '關於與圖片來源', body: '<div class="stack small"><div class="card"><h2>Training 1.0</h2><div class="muted">個人自用的訓練與飲食紀錄。熱量與營養數字為估算值，不是醫療建議。</div></div>' +
-      '<div class="card"><h2>圖片與資料來源</h2><ol class="cues"><li>動作插畫：Everkinetic（everkinetic.com，Greg Priday），CC BY-SA 4.0 授權，已縮小並轉為灰階</li><li>部分動作照片：free-exercise-db（yuhonas），Unlicense</li><li>肌肉圖：react-native-body-highlighter（ELABBASSI Hicham），MIT 授權，已改色</li><li>食物熱量為常見份量的約略值</li></ol></div></div>'
+      '<div class="card"><h2>圖片與資料來源</h2><ol class="cues"><li>動作插畫：Everkinetic（everkinetic.com，Greg Priday），CC BY-SA 4.0 授權，已縮小並轉為灰階</li><li>坐姿蹬腿、坐姿提踵插畫：Exercise data by RepDB（<a href="https://repdb.co" target="_blank" rel="noopener">repdb.co</a>），免費授權、需標示來源</li><li>部分動作照片：free-exercise-db（yuhonas），Unlicense</li><li>肌肉圖：react-native-body-highlighter（ELABBASSI Hicham），MIT 授權，已改色</li><li>食物熱量為常見份量的約略值</li></ol></div></div>'
   };
 }
 function sheetAddFood(meal) {

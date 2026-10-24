@@ -254,5 +254,17 @@
 "fe:T-Bar_Row_with_Handle": [
 "img/fe-T-Bar_Row_with_Handle-1.jpg",
 "img/fe-T-Bar_Row_with_Handle-2.jpg"
+],
+"rp:horizontal-leg-press": [
+"img/rp-horizontal-leg-press-1.jpg",
+"img/rp-horizontal-leg-press-2.jpg"
+],
+"rp:seated-calf-raise": [
+"img/rp-seated-calf-raise-1.jpg",
+"img/rp-seated-calf-raise-2.jpg"
+],
+"fe:Calf_Press": [
+"img/fe-Calf_Press-1.jpg",
+"img/fe-Calf_Press-2.jpg"
 ]
 }
