@@ -317,3 +317,12 @@ button.srow { all: unset; display: contents; cursor: pointer; }
 .fhist .fh-row .num { font-family: var(--fd); font-size: 16px; line-height: 1.2; }
 .fhist .fh-row .tag { white-space: nowrap; font-size: 11px; }
 .fhist .fh-row .tag svg { width: 11px; height: 11px; }
+
+.supp-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 12px; }
+.supp-it { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--s2); color: var(--tx); font: inherit; font-size: 14px; text-align: left; }
+.supp-it b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.supp-it .xs { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.supp-it .box { width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--mu); display: grid; place-items: center; flex: none; }
+.supp-it.on { border-color: rgba(98,192,143,.5); background: var(--ok-soft); }
+.supp-it.on .box { background: var(--ok); border-color: var(--ok); color: #0b0d10; }
+.supp-it .box svg { width: 14px; height: 14px; }

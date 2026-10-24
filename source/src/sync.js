@@ -4,8 +4,8 @@
  * 版本以雲端流水號 rev 為準，不用手機時間。
  */
 const SYNC = { cfg: null, meta: null, busy: false, pending: 0, status: 'off', msg: '', timer: null, photoQ: {} };
-const ARR_COLS = ['sessions', 'sets', 'foodlog', 'foods', 'measures', 'photos', 'cardio', 'customEx', 'gyms', 'targets'];
-const MAP_COLS = ['water', 'creatine', 'exu', 'blobs', 'rxu', 'daydone'];
+const ARR_COLS = ['sessions', 'sets', 'foodlog', 'foods', 'measures', 'photos', 'cardio', 'customEx', 'gyms', 'targets', 'combos'];
+const MAP_COLS = ['water', 'creatine', 'exu', 'blobs', 'rxu', 'daydone', 'suppck'];
 const SINGLES = ['profile', 'supp', 'settings'];
 const LOCAL_SETTINGS = ['lastBackup'];
 const IS_PAGES = typeof window !== 'undefined' && window.APP_MODE === 'pages';

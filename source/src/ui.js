@@ -318,7 +318,8 @@ function vToday() {
       ring(tot.kcal, t.kcal, '<div class="num" style="font-size:26px;font-weight:600;line-height:1">' + Math.round(tot.kcal) + '</div><div class="xs muted">/ ' + t.kcal + ' 大卡</div>') +
       '<div class="grow stack" style="gap:8px"><div><span class="small muted">' + (left > 0 ? '還差' : '已超過') + '</span> <span class="mid">' + Math.abs(left) + '</span> <span class="small muted">大卡</span></div>' +
       macroLine('蛋白', tot.p, t.p) + macroLine('碳水', tot.c, t.c) + macroLine('脂肪', tot.f, t.f) + '</div></div>';
-    h += '<div class="row" style="margin-top:14px"><button class="btn grow" data-a="tab" data-v="food">' + ic('plus') + '記一餐</button>' + (S.supp.has ? '<button class="btn grow" data-a="addShake">' + ic('plus') + '高蛋白</button>' : '') + '</div></div>';
+    if ((S.combos || []).length) h += '<div class="chips" style="margin-top:12px">' + S.combos.map(c => '<button class="chip" data-a="addComboHome" data-v="' + c.id + '">' + ic('plus') + esc(c.name) + '</button>').join('') + '</div>';
+    h += '<div class="row" style="margin-top:' + ((S.combos || []).length ? 8 : 14) + 'px"><button class="btn grow" data-a="tab" data-v="food">' + ic('plus') + '記一餐</button>' + (S.supp.has ? '<button class="btn grow" data-a="addShake">' + ic('plus') + '高蛋白</button>' : '') + '</div></div>';
   }
   // 補充品與水
   h += suppCard(today);
@@ -336,10 +337,12 @@ function suppCard(date) {
   const goal = waterGoal(S, trainDay); const w = S.water[date] || 0;
   const on = !!S.creatine[date];
   let streak = 0; let d = date; if (!on) d = addDays(date, -1); while (S.creatine[d]) { streak++; d = addDays(d, -1); }
-  return '<div class="card"><h2>喝水與肌酸</h2>' +
+  const items = (S.supp.items || []); const ck = (S.suppck || {})[date] || {};
+  const itemsHtml = items.length ? '<div class="supp-list">' + items.map(it => '<button class="supp-it' + (ck[it.id] ? ' on' : '') + '" data-a="suppTick" data-v="' + date + ':' + it.id + '"><span class="box">' + (ck[it.id] ? ic('check') : '') + '</span><span class="grow" style="min-width:0"><b>' + esc(it.name) + '</b>' + (it.note ? '<span class="xs muted">' + esc(it.note) + '</span>' : '') + '</span></button>').join('') + '</div>' : '<button class="btn sm ghost" style="margin-top:10px" data-a="setSupp">' + ic('plus') + '加入魚油、鋅等每日補充品</button>';
+  return '<div class="card"><h2>喝水與補充品</h2>' +
     '<div class="row between"><div><span class="mid">' + (w / 1000).toFixed(1) + '</span> <span class="muted small">/ ' + (goal / 1000).toFixed(1) + ' 公升</span></div><div class="row" style="gap:6px"><button class="btn sm" data-a="water" data-v="250">+250</button><button class="btn sm" data-a="water" data-v="500">+500</button><button class="btn sm ghost" data-a="water" data-v="-250" aria-label="減 250">−</button></div></div>' +
     '<div style="margin-top:8px">' + bar(w, goal, w >= goal ? 'ok' : '') + '</div>' +
-    '<div class="hr"></div><div class="row between"><div><div style="font-weight:600">肌酸 ' + (S.profile.creatineStart ? '' : '<span class="tag">還沒開始</span>') + '</div><div class="small muted">' + (streak ? '連續 ' + streak + ' 天' : '每天 3–5g，休息日也要吃') + '</div></div><button class="btn sm ' + (on ? 'pri' : '') + '" data-a="creatine" data-v="' + date + '">' + (on ? ic('check') + '今天已吃' : '今天吃了') + '</button></div></div>';
+    '<div class="hr"></div><div class="row between"><div><div style="font-weight:600">肌酸 ' + (S.profile.creatineStart ? '' : '<span class="tag">還沒開始</span>') + '</div><div class="small muted">' + (streak ? '連續 ' + streak + ' 天' : '每天 3–5g，休息日也要吃') + '</div></div><button class="btn sm ' + (on ? 'pri' : '') + '" data-a="creatine" data-v="' + date + '">' + (on ? ic('check') + '今天已吃' : '今天吃了') + '</button></div>' + itemsHtml + '</div>';
 }
 function coachTips(today) {
   const tips = []; const t = currentTarget(S);
@@ -485,7 +488,7 @@ function vFood() {
   for (const [m, name] of MEALS) {
     const items = S.foodlog.filter(x => x.date === date && x.meal === m);
     const mt = items.reduce((a, x) => a + x.kcal, 0), mp = items.reduce((a, x) => a + x.p, 0);
-    h += '<div class="card"><div class="row between"><div><h3>' + name + '</h3><div class="small muted">' + Math.round(mt) + ' 大卡・蛋白 ' + Math.round(mp) + 'g</div></div>' + (lock ? '' : '<button class="btn sm" data-a="addFood" data-v="' + m + '">' + ic('plus') + '新增</button>') + '</div>';
+    h += '<div class="card"><div class="row between"><div><h3>' + name + '</h3><div class="small muted">' + Math.round(mt) + ' 大卡・蛋白 ' + Math.round(mp) + 'g</div></div>' + (lock ? '' : '<div class="row" style="gap:6px">' + (items.length >= 2 ? '<button class="btn sm ghost" data-a="comboNew" data-v="' + date + ':' + m + '">存成組合</button>' : '') + '<button class="btn sm" data-a="addFood" data-v="' + m + '">' + ic('plus') + '新增</button></div>') + '</div>';
     if (items.length) h += '<div class="list" style="margin-top:6px">' + items.map(x => '<button class="li" style="border-left:0;border-right:0;border-bottom:0;background:transparent;width:100%;text-align:left"' + (lock ? ' disabled' : ' data-a="editLog" data-v="' + x.id + '"') + '><div class="grow"><div class="t">' + esc(x.name) + '</div><div class="small muted">' + fmtNum(x.qty) + ' × ' + esc(x.unit) + '</div></div><div style="text-align:right"><div class="num" style="font-size:17px">' + Math.round(x.kcal) + '</div><div class="xs muted">蛋白 ' + fmtNum(x.p) + 'g</div></div></button>').join('') + '</div>';
     h += '</div>';
   }
@@ -523,6 +526,25 @@ function foodHistCard() {
     '<div class="fh-head"><div>日期</div><div>熱量</div><div>蛋白質</div><div>狀態</div></div>' + rows +
     '<div class="xs dim" style="margin-top:8px">統計只算有效的天：按了「記錄完成」，或熱量有到目標一半的過去日子。今天還在記錄中，不算。點一列可以跳到那天。</div>' +
     (tips.length ? '<div class="stack" style="gap:8px;margin-top:10px">' + tips.map(x => '<div class="note ' + x.lvl + ' small">' + x.text + '</div>').join('') + '</div>' : '') + '</details>';
+}
+function comboTot(c) { const t = { kcal: 0, p: 0, c: 0, f: 0 }; for (const x of c.items) { t.kcal += x.kcal; t.p += x.p; t.c += x.c; t.f += x.f; } return t; }
+function applyCombo(c, date, meal) {
+  for (const x of c.items) S.foodlog.push({ id: uid(), date, meal, name: x.name, unit: x.unit, qty: x.qty, kcal: x.kcal, p: x.p, c: x.c, f: x.f, foodId: x.foodId || null, t: Date.now() });
+  if (c.creatine && !S.creatine[date]) { S.creatine[date] = true; if (!S.profile.creatineStart) S.profile.creatineStart = date; }
+  save();
+}
+function sheetCombo(date, meal) {
+  return () => {
+    const items = S.foodlog.filter(x => x.date === date && x.meal === meal);
+    const mealName = MEALS.find(m => m[0] === meal)[1];
+    const t = comboTot({ items });
+    return { title: '存成組合', body: '<div class="stack"><div class="small muted">把這餐存起來，之後在首頁或「新增」裡一鍵加入同樣的內容。</div>' +
+      '<label class="f">名稱<input class="inp" id="cb-name" value="' + esc(UI.cbName || (mealName + '組合')) + '" placeholder="例如：早餐燕麥奶昔"></label>' +
+      '<div class="list">' + items.map(x => '<div class="li"><div class="grow"><div class="t">' + esc(x.name) + '</div><div class="small muted">' + fmtNum(x.qty) + ' × ' + esc(x.unit) + '</div></div><div class="small muted">' + Math.round(x.kcal) + ' 大卡</div></div>').join('') + '</div>' +
+      '<div class="small">合計 <b>' + Math.round(t.kcal) + '</b> 大卡・蛋白質 <b>' + fmtNum(t.p) + '</b>g</div>' +
+      '<button class="opt' + (UI.cbCreatine ? ' on' : '') + '" data-a="cbCreatine"><b>' + (UI.cbCreatine ? '✓ ' : '') + '加入時同時勾選今天的肌酸</b><span>例如練完的高蛋白＋肌酸</span></button></div>',
+      foot: '<button class="btn pri" data-a="comboSave" data-v="' + date + ':' + meal + '">儲存組合</button>' };
+  };
 }
 function logFood(date, meal, f, qty) {
   qty = +qty || 1;
@@ -847,12 +869,18 @@ function sheetTraining() {
       '<button class="opt' + (s.preferMachines ? ' on' : '') + '" data-a="togPrefer"><b>' + (s.preferMachines ? '✓ ' : '') + '偏好器械</b><span>預設課表以器械為主，比較穩定、好控制</span></button><button class="btn pri" data-a="saveTraining">儲存</button></div>'
   };
 }
+const MILKS = { full: ['全脂牛奶', 64, 3.2, 4.8, 3.6], light: ['低脂牛奶', 46, 3.5, 5, 1.3], lf_full: ['無乳糖全脂', 64, 3.3, 4.7, 3.5], lf_light: ['無乳糖低脂', 45, 3.6, 4.9, 1.2], soy: ['無糖豆漿', 35, 3.5, 1, 2] };
 function sheetSupp() {
   const s = S.supp; const p = S.profile;
   return {
     title: '補充品與喝水', body: '<div class="stack"><button class="opt' + (s.has ? ' on' : '') + '" data-a="togHas"><b>' + (s.has ? '✓ ' : '') + '我有在喝高蛋白</b><span>首頁會出現一鍵加入按鈕</span></button>' +
       '<div class="card"><h2>高蛋白營養標示（每匙）</h2><div class="grid2"><label class="f">名稱<input class="inp" id="s-name" value="' + esc(s.name) + '"></label><label class="f">一匙幾克<input class="inp" id="s-g" inputmode="decimal" value="' + s.scoopG + '"></label><label class="f">熱量<input class="inp" id="s-k" inputmode="decimal" value="' + s.kcal + '"></label><label class="f">蛋白質 g<input class="inp" id="s-p" inputmode="decimal" value="' + s.p + '"></label><label class="f">碳水 g<input class="inp" id="s-c" inputmode="decimal" value="' + s.c + '"></label><label class="f">脂肪 g<input class="inp" id="s-f" inputmode="decimal" value="' + s.f + '"></label></div>' +
-      '<label class="f" style="margin-top:10px">每次加多少牛奶（ml，用水就填 0）<input class="inp" id="s-milk" inputmode="numeric" value="' + s.milkMl + '"></label><div class="small muted" style="margin-top:6px">牛奶以全脂計算：每 100ml 約 64 大卡、蛋白 3.2g。</div></div>' +
+      '<label class="f" style="margin-top:10px">每次加多少牛奶（ml，用水就填 0）<input class="inp" id="s-milk" inputmode="numeric" value="' + s.milkMl + '"></label>' +
+      '<label class="f" style="margin-top:10px">牛奶種類<select class="inp" id="s-mt">' + Object.keys(MILKS).map(k => '<option value="' + k + '"' + ((s.milkType || 'full') === k ? ' selected' : '') + '>' + MILKS[k][0] + '（每 100ml ' + MILKS[k][1] + ' 大卡、蛋白 ' + MILKS[k][2] + 'g）</option>').join('') + '</select></label><div class="small muted" style="margin-top:6px">一天喝幾份就按幾次「+ 高蛋白」；常喝的搭配（例如加燕麥）可以在飲食頁「存成組合」。</div></div>' +
+      '<div class="card"><h2>每日補充品（打勾用）</h2><div class="small muted">魚油、鋅這類熱量很少的，只打勾記錄有沒有吃，不算進熱量。</div>' +
+      ((s.items || []).length ? '<div class="list" style="margin-top:8px">' + s.items.map(it => '<div class="li"><div class="grow"><div class="t">' + esc(it.name) + '</div>' + (it.note ? '<div class="small muted">' + esc(it.note) + '</div>' : '') + '</div><button class="icon-btn" data-a="suppDel" data-v="' + it.id + '" aria-label="刪除">' + ic('trash') + '</button></div>').join('') + '</div>' : '') +
+      '<div class="chips" style="margin-top:10px">' + ['魚油', '鋅 Zinc+', '麩醯胺酸', '維他命 D', '綜合維他命', '鎂'].filter(n => !(s.items || []).some(it => it.name === n)).map(n => '<button class="chip" data-a="suppQuick" data-v="' + n + '">' + ic('plus') + n + '</button>').join('') + '</div>' +
+      '<div class="grid2" style="margin-top:10px"><input class="inp" id="si-name" placeholder="其他名稱"><input class="inp" id="si-note" placeholder="時間（選填）如：早上空腹"></div><button class="btn sm" style="margin-top:8px" data-a="suppAdd">' + ic('plus') + '加入</button></div>' +
       '<div class="card"><h2>怎麼喝</h2><ol class="cues small"><li>高蛋白是用來補足一天約 ' + (currentTarget(S) || { p: 100 }).p + 'g 蛋白質的缺口，一天 1–2 匙就好</li><li>訓練日：練完 2 小時內喝一份；休息日：早餐或下午點心喝</li><li>用牛奶泡比用水多約 190 大卡，對增肌有幫助</li><li>喝牛奶脹氣就改買分離乳清（Isolate）用水泡</li></ol></div>' +
       '<div class="card"><h2>肌酸</h2><label class="f">開始日期（還沒開始就留空）<input class="inp" id="s-cs" type="date" value="' + (p.creatineStart || '') + '"></label><ol class="cues small" style="margin-top:10px"><li>一水肌酸（Creatine Monohydrate），每天 3–5g</li><li>每天都吃，休息日也吃；時間不重要，可以加進高蛋白</li><li>前 1–3 週體重會多 1–2kg 水分，這段期間 app 暫停自動調整熱量</li><li>腎臟有已知問題的人先問醫生</li></ol></div>' +
       '<div class="card"><h2>喝水</h2><button class="opt' + (S.settings.outdoorWork ? ' on' : '') + '" data-a="togOutdoor"><b>' + (S.settings.outdoorWork ? '✓ ' : '') + '戶外或流汗的工作</b><span>每天目標多加 500ml</span></button><label class="f" style="margin-top:10px">自訂每日目標 ml（留空用自動計算）<input class="inp" id="s-wg" inputmode="numeric" value="' + (S.settings.waterGoalManual || '') + '"></label><div class="small muted" style="margin-top:6px">自動：體重 × 35ml，訓練日 +500ml。尿液淡黃色代表喝夠。</div></div>' +
@@ -900,6 +928,7 @@ function sheetAddFood(meal) {
     } else if (tab === 'new') {
       b += '<div class="small muted">照包裝上的營養標示輸入一次，之後在「常用」一鍵加入。</div><label class="f">名稱<input class="inp" id="n-name" placeholder="例如：Coles 雞胸肉"></label><label class="f">單位<input class="inp" id="n-unit" placeholder="例如：1 包、100g、1 份"></label><div class="grid2"><label class="f">熱量<input class="inp" id="n-k" inputmode="decimal"></label><label class="f">蛋白質 g<input class="inp" id="n-p" inputmode="decimal"></label><label class="f">碳水 g<input class="inp" id="n-c" inputmode="decimal"></label><label class="f">脂肪 g<input class="inp" id="n-f" inputmode="decimal"></label></div><div class="note small">澳洲包裝的 Energy 是 kJ：除以 4.184 就是大卡。</div><button class="btn pri" data-a="newFood" data-v="' + meal + '">儲存並加入' + mealName + '</button>';
     } else {
+      if (tab === 'fav' && (S.combos || []).length) b += '<div class="sec-title" style="margin:2px 0 -4px">我的組合（一鍵加入）</div><div class="list">' + S.combos.map(c => { const t = comboTot(c); return '<div class="li"><button style="flex:1;min-width:0;text-align:left;background:transparent;border:0;padding:0;color:inherit" data-a="addCombo" data-v="' + c.id + '" data-meal="' + meal + '"><div class="t">' + esc(c.name) + (c.creatine ? ' <span class="tag">含肌酸</span>' : '') + '</div><div class="small muted ell">' + c.items.map(x => esc(x.name)).join('＋') + '</div><div class="small muted">' + Math.round(t.kcal) + ' 大卡・蛋白 ' + fmtNum(t.p) + 'g</div></button><button class="icon-btn" data-a="delCombo" data-v="' + c.id + '" aria-label="刪除組合">' + ic('trash') + '</button></div>'; }).join('') + '</div><div class="sec-title" style="margin:6px 0 -4px">單項食物</div>';
       b += '<input class="inp" id="foodq" placeholder="搜尋食物" value="' + esc(UI.foodQ || '') + '">';
       b += list.length ? '<div class="list">' + list.map(f => '<div class="li"><button style="flex:1;min-width:0;text-align:left;background:transparent;border:0;padding:0" data-a="pickFood" data-v="' + esc(f.id) + '" data-meal="' + meal + '"><div class="t">' + esc(f.name) + (f.recent ? ' <span class="tag">最近</span>' : '') + '</div><div class="small muted">' + esc(f.unit) + '・' + Math.round(f.kcal) + ' 大卡・蛋白 ' + fmtNum(f.p) + 'g</div></button>' + (f.recent && String(f.id).startsWith('log:') ? '' : '<button class="icon-btn" data-a="favFood" data-v="' + esc(f.id) + '" aria-label="加入常用" style="' + (S.settings.favFoods.includes(f.id) ? 'color:var(--brass)' : '') + '">' + ic('star') + '</button>') + '</div>').join('') + '</div>' : '<div class="empty">' + (tab === 'fav' ? '還沒有常用食物。到「全部」按星號加入常用，或記錄過的食物會自動出現在這裡。' : '找不到。用「照標示新增」或「快速輸入」。') + '</div>';
     }
@@ -922,12 +951,12 @@ function sheetQty(food, meal, logId) {
 
 /* ===== 事件 ===== */
 const A = {};
-const FOOD_EDIT = new Set(['addFood', 'addShake', 'addShakeTo', 'editLog', 'saveLog', 'delLog', 'confirmFood', 'copyMeal', 'quickAdd', 'newFood', 'scanFood', 'saveBarcodeFood', 'pickFood']);
+const FOOD_EDIT = new Set(['addFood', 'addShake', 'addComboHome', 'addCombo', 'comboNew', 'addShakeTo', 'editLog', 'saveLog', 'delLog', 'confirmFood', 'copyMeal', 'quickAdd', 'newFood', 'scanFood', 'saveBarcodeFood', 'pickFood']);
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if (!el || el.disabled) return;
   const fn = A[el.dataset.a]; if (!fn) return;
   e.preventDefault();
-  if (FOOD_EDIT.has(el.dataset.a)) { const d = el.dataset.a === 'addShake' ? todayStr() : (UI.foodDate || todayStr()); if (dayLocked(S, d)) { toast((d === todayStr() ? '今天' : mdLabel(d)) + '已按「記錄完成」，要修改請先到飲食頁按「解鎖修改」'); return; } }
+  if (FOOD_EDIT.has(el.dataset.a)) { const d = (el.dataset.a === 'addShake' || el.dataset.a === 'addComboHome') ? todayStr() : (UI.foodDate || todayStr()); if (dayLocked(S, d)) { toast((d === todayStr() ? '今天' : mdLabel(d)) + '已按「記錄完成」，要修改請先到飲食頁按「解鎖修改」'); return; } }
   ensureAudio();
   try { await fn(el.dataset.v, el, e); } catch (err) { console.error(err); toast('發生錯誤：' + (err.message || err)); }
 });
@@ -1022,7 +1051,7 @@ A.eqAll = (cat, el) => {
 A.skipRest = () => { skipRest(S); save(); render(); toast('改成今天練推日'); };
 A.water = v => { const d = UI.tab === 'food' ? (UI.foodDate || todayStr()) : todayStr(); S.water[d] = Math.max(0, (S.water[d] || 0) + (+v)); save(); render(); };
 A.creatine = v => { if (S.creatine[v]) delete S.creatine[v]; else { S.creatine[v] = true; if (!S.profile.creatineStart) { S.profile.creatineStart = v; toast('已記錄肌酸開始日期'); } } save(); render(); };
-A.addShake = () => { logFood(todayStr(), guessMeal(), shakeFood(), 1); toast('已加入高蛋白'); render(); };
+A.addShake = () => { logFood(todayStr(), guessMeal(), shakeFood(), 1); const n = S.foodlog.filter(x => x.date === todayStr() && x.foodId === 'shake').length; toast('已加入高蛋白' + (n > 1 ? '（今天第 ' + n + ' 份）' : '')); render(); };
 A.addWeight = () => openSheet('weight', () => ({
   title: '記錄體重', body: '<div class="stack"><div class="small muted">建議休息日早上量：起床、上完廁所、吃東西前。同一天量兩次會以最後一次為準。</div><div class="grid2"><label class="f">日期<input class="inp" id="w-date" type="date" value="' + todayStr() + '" max="' + todayStr() + '"></label><label class="f">體重 kg<input class="inp" id="w-kg" inputmode="decimal" value="' + (latestWeight(S) ? latestWeight(S).kg : '') + '"></label></div></div>',
   foot: '<button class="btn pri" data-a="saveWeight">儲存</button>', after: w => { const i = $('#w-kg', w); if (i) i.select(); }
@@ -1249,6 +1278,20 @@ A.libDay = v => { UI.libDay = v; render(); };
 A.libMine = () => { UI.libMine = !UI.libMine; render(); };
 
 /* 飲食 */
+A.suppTick = v => { const [d, id] = v.split(':'); S.suppck = S.suppck || {}; const m = Object.assign({}, S.suppck[d] || {}); if (m[id]) delete m[id]; else m[id] = 1; if (Object.keys(m).length) S.suppck[d] = m; else delete S.suppck[d]; save(); render(); };
+A.suppQuick = v => { S.supp.items = S.supp.items || []; S.supp.items.push({ id: uid(), name: v, note: '' }); save(); refreshSheet('supp'); render(); };
+A.suppAdd = () => { const n = $('#si-name').value.trim(); if (!n) { toast('請輸入名稱'); return; } S.supp.items = S.supp.items || []; S.supp.items.push({ id: uid(), name: n, note: $('#si-note').value.trim() }); save(); refreshSheet('supp'); render(); toast('已加入'); };
+A.suppDel = async v => { const it = (S.supp.items || []).find(x => x.id === v); if (!it || !(await confirmBox('移除「' + esc(it.name) + '」？過去打勾的紀錄會保留。', '移除', true))) return; S.supp.items = S.supp.items.filter(x => x.id !== v); save(); refreshSheet('supp'); render(); };
+A.comboNew = v => { const [d, m] = v.split(':'); UI.cbName = ''; UI.cbCreatine = false; openSheet('combo', sheetCombo(d, m)); };
+A.cbCreatine = () => { UI.cbName = $('#cb-name').value; UI.cbCreatine = !UI.cbCreatine; refreshSheet('combo'); };
+A.comboSave = v => {
+  const [d, m] = v.split(':'); const name = $('#cb-name').value.trim(); if (!name) { toast('請輸入名稱'); return; }
+  const items = S.foodlog.filter(x => x.date === d && x.meal === m).map(x => ({ name: x.name, unit: x.unit, qty: x.qty, kcal: x.kcal, p: x.p, c: x.c, f: x.f, foodId: x.foodId || null }));
+  S.combos = S.combos || []; S.combos.push({ id: uid(), name, meal: m, creatine: !!UI.cbCreatine, items }); save(); closeSheet('combo'); render(); toast('已存成「' + esc(name) + '」');
+};
+A.addCombo = (v, el) => { const c = S.combos.find(x => x.id === v); if (!c) return; applyCombo(c, UI.foodDate || todayStr(), el.dataset.meal); closeSheet('addfood'); render(); toast('已加入' + esc(c.name)); };
+A.addComboHome = v => { const c = S.combos.find(x => x.id === v); if (!c) return; const m = c.meal || guessMeal(); applyCombo(c, todayStr(), m); render(); toast('已加入' + esc(c.name) + '（' + MEALS.find(x => x[0] === m)[1] + '）' + (c.creatine ? '・肌酸已打勾' : '')); };
+A.delCombo = async v => { const c = S.combos.find(x => x.id === v); if (!c || !(await confirmBox('刪除組合「' + esc(c.name) + '」？已記錄的餐不受影響。', '刪除', true))) return; S.combos = S.combos.filter(x => x.id !== v); save(); refreshSheet('addfood'); render(); };
 A.foodGo = v => { UI.foodDate = v === todayStr() ? null : v; UI.fhOpen = true; render(); };
 A.dayDone = v => {
   const ds = dayStatus(S, v);
@@ -1394,6 +1437,7 @@ A.togOutdoor = () => { S.settings.outdoorWork = !S.settings.outdoorWork; save();
 A.saveSupp = () => {
   const s = S.supp; const n = id => parseFloat($(id).value);
   s.name = $('#s-name').value.trim() || '高蛋白'; s.scoopG = n('#s-g') || s.scoopG; s.kcal = n('#s-k') || 0; s.p = n('#s-p') || 0; s.c = n('#s-c') || 0; s.f = n('#s-f') || 0; s.milkMl = Math.max(0, n('#s-milk') || 0);
+  { const mt = $('#s-mt').value; const M = MILKS[mt]; if (M) { s.milkType = mt; s.milkKcal = M[1]; s.milkP = M[2]; s.milkC = M[3]; s.milkF = M[4]; } }
   S.profile.creatineStart = $('#s-cs').value || null;
   const wg = parseInt($('#s-wg').value, 10); S.settings.waterGoalManual = wg > 500 ? wg : null;
   save(); closeSheet('supp'); refreshSheet('settings'); render(); toast('已儲存');

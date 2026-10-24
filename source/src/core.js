@@ -64,7 +64,8 @@ function blankState() {
       favFoods: [], lastBackup: null, waterGoalManual: null
     },
     gyms: [], sessions: [], sets: [], weights: [], foods: [], foodlog: [], water: {}, creatine: {}, daydone: {},
-    supp: { has: false, name: '高蛋白', scoopG: 30, kcal: 120, p: 24, c: 3, f: 1.5, milkMl: 300, milkKcal: 64, milkP: 3.2, milkC: 4.8, milkF: 3.6 },
+    supp: { has: false, name: '高蛋白', scoopG: 30, kcal: 120, p: 24, c: 3, f: 1.5, milkMl: 300, milkType: 'full', milkKcal: 64, milkP: 3.2, milkC: 4.8, milkF: 3.6, items: [] },
+    suppck: {}, combos: [],
     targets: [], measures: [], photos: [], exu: {}, customEx: [], cardio: [], blobs: {}, rxu: {}
   };
 }
