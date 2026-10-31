@@ -1239,7 +1239,7 @@ A.finishSession = async () => {
     if (!mode) return;
   }
   s.end = new Date().toTimeString().slice(0, 5); s.endTs = Date.now();
-  if (mode === 'partial') { s.partial = true; toast('已保存，下次還是' + DAY_NAME[s.day]); } else advanceCycle(S, s.date);
+  if (mode === 'partial') { s.partial = true; repeatCycleDay(S, s.day); toast('已保存，下次還是' + DAY_NAME[s.day]); } else advanceCycle(S, s.date, s.day);
   stopTimer(); save(); scheduleSync(800);
   openSheet('summary', sheetSummary(s.id)); render();
 };

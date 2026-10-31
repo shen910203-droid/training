@@ -159,10 +159,17 @@ function syncCycle(S, today) {
   if (ORDER[c.idx] === 'rest' && !c.restOn) { c.restOn = today; return true; }
   return false;
 }
-function advanceCycle(S, date) {
+// 依「實際練的那一天」往下一天走，不是從原本排程 +1（改練別天時才不會錯位）
+function advanceCycle(S, date, day) {
   const c = S.settings.cycle;
-  c.idx = (c.idx + 1) % 4;
-  if (ORDER[c.idx] === 'rest') c.restOn = addDays(date, 1);
+  const i = ORDER.indexOf(day);
+  c.idx = i >= 0 && i < 3 ? (i + 1) % 4 : (c.idx + 1) % 4;
+  c.restOn = ORDER[c.idx] === 'rest' ? addDays(date, 1) : null;
+}
+// 沒練完、下次再練同一天
+function repeatCycleDay(S, day) {
+  const c = S.settings.cycle; const i = ORDER.indexOf(day);
+  if (i >= 0 && i < 3) { c.idx = i; c.restOn = null; }
 }
 function skipRest(S) {
   const c = S.settings.cycle;
