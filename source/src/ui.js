@@ -419,7 +419,11 @@ function rowPrefill(s, e, n, sets) {
   const hist = exHistory(S, e.id, { excludeSid: s.id, gymId: gym ? gym.id : null });
   const prev = sets[sets.length - 1];
   if (prev && prev.cal && prev.rir && !prev.warm) return { w: calNext(prev.w, prev.rir), reps: prev.reps };
-  if (hist.length) { const ls = hist[0].sets; const m = ls.find(x => x.n === n) || ls[ls.length - 1]; if (m) return { w: m.w, reps: m.reps }; }
+  // 跟「今天建議」一致：重量用上次最重那組（這次已做過就用這次上一組），次數用今天的目標
+  const sg = hist.length ? suggestion(S, e, phaseOf(s.round), s.id) : null;
+  const tr = sg && sg.target ? sg.target : null;
+  if (prev && !prev.warm) return { w: prev.w, reps: tr || prev.reps };
+  if (sg && sg.top) return { w: sg.top.w, reps: tr || sg.top.reps };
   if (prev) return { w: prev.w, reps: prev.reps };
   return { w: '', reps: e.load === 'time' ? 30 : 10 };
 }
@@ -428,7 +432,9 @@ function prevCell(s, e, n) {
   const hist = exHistory(S, e.id, { excludeSid: s.id, gymId: gym ? gym.id : null });
   if (!hist.length) return '–';
   const m = hist[0].sets.find(x => x.n === n);
-  return m ? fmtSet(e, m) : '–';
+  if (!m) return '–';
+  const l = rirLabel(m);
+  return '<span class="pv">' + esc(fmtSet(e, m)) + '</span>' + (l ? '<span class="rl' + (l === '力竭' ? ' f' : '') + '">' + l + '</span>' : '');
 }
 function exCard(s, e, ph) {
   if (!e) return '';
@@ -438,7 +444,7 @@ function exCard(s, e, ph) {
   const rx = sessionRx(S, s, e);
   const target = rx.sets + ((s.extra || {})[e.id] || 0); const open = UI.openEx === e.id; const done = !!s.done[e.id];
   const sg = suggestion(S, e, ph, s.id);
-  const sub = done ? work.map(x => fmtSet(e, x)).join('、') || '略過' : (sg.cal ? '試重模式' : '上次 ' + fmtSet(e, sg.top)) + '・' + rx.lo + '–' + rx.hi + (e.load === 'time' ? ' 秒' : ' 下');
+  const sub = done ? work.map(x => fmtSet(e, x)).join('、') || '略過' : (sg.cal ? '試重模式' : '上次 ' + fmtSetR(e, sg.top)) + '・' + rx.lo + '–' + rx.hi + (e.load === 'time' ? ' 秒' : ' 下');
   let h = '<div class="exc' + (open ? ' open' : '') + (done ? ' done' : '') + '" id="ex-' + e.id + '"><button class="exc-h" data-a="toggleEx" data-v="' + e.id + '" aria-expanded="' + open + '">' + exThumb(e) +
     '<div class="grow"><div class="t" style="font-weight:600">' + esc(e.name) + '</div><div class="small muted ell">' + esc(sub) + '</div></div>' +
     (done ? '<span class="tag ok">' + ic('check') + '完成</span>' : '<span class="tag ' + (work.length >= target ? 'ok' : work.length ? 'brass' : '') + '">' + work.length + '/' + target + '</span>') + '</button>';
@@ -454,11 +460,11 @@ function exCard(s, e, ph) {
   const isTime = e.load === 'time';
   h += '<div class="sets" role="table"><div class="sh">組</div><div class="sh">上次</div><div class="sh">' + (isTime ? '' : (e.load === 'stack' ? 'kg' : LOAD_LABEL[e.load])) + '</div><div class="sh">' + (isTime ? '秒' : '次') + '</div><div class="sh"></div>';
   for (const st of sets) {
-    h += '<button class="srow done" data-a="editSet" data-v="' + st.id + '" aria-label="修改這組"><span class="c n">' + (st.warm ? '熱' : st.n) + '</span><span class="c prev">' + prevCell(s, e, st.n) + '</span><span class="c v">' + (isTime ? '' : fmtNum(e.load === 'barbell' ? st.w : st.tw)) + '</span><span class="c v">' + st.reps + '</span><span class="c ck on">' + (st.pr ? '<b class="pr">PR</b>' : ic('check')) + '</span></button>';
+    h += '<button class="srow done" data-a="editSet" data-v="' + st.id + '" aria-label="修改這組"><span class="c n">' + (st.warm ? '熱' : st.n) + '</span><span class="c prev">' + prevCell(s, e, st.n) + '</span><span class="c v">' + (isTime ? '' : fmtNum(e.load === 'barbell' ? st.w : st.tw)) + '</span><span class="c v rv">' + st.reps + (rirLabel(st) ? '<span class="rl' + (rirLabel(st) === '力竭' ? ' f' : '') + '">' + rirLabel(st) + '</span>' : '') + '</span><span class="c ck on">' + (st.pr ? '<b class="pr">PR</b>' : st.rp ? '<b class="pr">↑</b>' : ic('check')) + '</span></button>';
   }
   const last = sets[sets.length - 1];
-  if (last && last.cal && !last.warm) {
-    h += '<div class="rirbox"><div class="xs muted">第 ' + last.n + ' 組做完，還能再做幾下？（試重用）</div><div class="grid4" style="margin-top:6px">' + RIR_OPTS.map(([v, l]) => '<button class="chip' + (last.rir === v ? ' on' : '') + '" style="justify-content:center" data-a="rowRir" data-v="' + last.id + ':' + v + '">' + l + '</button>').join('') + '</div>' + (last.rir ? '<div class="small" style="margin-top:6px;color:var(--ok)">' + calText(last.w, last.rir) + '</div>' : '') + '</div>';
+  if (last && !last.warm && !done) {
+    h += '<div class="rirbox"><div class="xs muted">第 ' + last.n + ' 組還能再做幾下？' + (last.cal ? '（試重用，app 會建議下一組重量）' : '（點一下，下次會顯示）') + '</div><div class="rirg" style="margin-top:6px">' + RIR_OPTS.map(([v, l]) => '<button class="chip' + (last.rir === v ? ' on' : '') + (v === '0' ? ' f' : '') + '" data-a="rowRir" data-v="' + last.id + ':' + v + '">' + l + '</button>').join('') + '</div>' + (last.cal && last.rir ? '<div class="small" style="margin-top:6px;color:var(--ok)">' + calText(last.w, last.rir) + '</div>' : '') + '</div>';
   }
   const nextN = sets.length ? Math.max(...sets.map(x => x.n)) + 1 : 1;
   const pending = done ? 0 : Math.max(target - work.length, 0);
@@ -575,7 +581,7 @@ function vProgress() {
     const r = weekReview(S, today);
     h += '<div class="card"><h2>近 7 天回顧</h2><div class="kpi">' +
       kpi('訓練', r.sessions + ' 次', '容量 ' + r.vol.toLocaleString() + ' kg') +
-      kpi('破紀錄', r.prs + ' 個', 'PR') +
+      kpi('重量 PR', r.prs + ' 個', '只算重量新高') +
       kpi('平均熱量', r.avgKcal != null ? r.avgKcal : '–', r.tKcal ? '目標 ' + r.tKcal + '・記錄 ' + r.loggedDays + ' 天' : '') +
       kpi('平均蛋白', r.avgP != null ? r.avgP + 'g' : '–', r.tP ? '目標 ' + r.tP + 'g' : '') +
       kpi('體重變化', r.wChange != null ? (r.wChange > 0 ? '+' : '') + r.wChange + ' kg' : '–', r.wFrom ? '從 ' + mdLabel(r.wFrom) : '需要 2 筆以上') +
@@ -668,7 +674,7 @@ function sheetExDetail(id) {
       b += '<div class="card"><h2>我的紀錄</h2>' + (e.load !== 'time' && showChart ? lineChart(ptsTop, { label: '最重組趨勢', pts2: pts1, xlabel: x => (ptsTop[x] || {}).d ? ptsTop[x].d.slice(5).replace('-', '/') : '' }) + '<div class="legend" style="justify-content:flex-start;margin:6px 0 10px"><span><i style="background:#d4a24c"></i>最重組</span>' + (pts1.length ? '<span><i style="background:#7fa8d6"></i>估計 1RM</span>' : '') + '</div>' : '');
       const pb = prBoard(S, e).filter(x => x.reps <= 15);
       if (pb.length && e.load !== 'assist') b += '<div class="small muted" style="margin-bottom:6px">各次數最重紀錄</div><div class="chips">' + pb.map(x => '<span class="chip">' + x.reps + ' 下 <b style="color:var(--tx)">' + fmtNum(x.tw) + '</b></span>').join('') + '</div>';
-      b += '<div class="list" style="margin-top:10px">' + hist.slice(0, 8).map(h => '<div class="li"><div style="width:72px" class="small muted">' + h.date.slice(5).replace('-', '/') + '</div><div class="grow small">' + h.work.map(st => fmtSet(e, st)).join('、') + '</div></div>').join('') + '</div></div>';
+      b += '<div class="list" style="margin-top:10px">' + hist.slice(0, 8).map(h => '<div class="li"><div style="width:72px" class="small muted">' + h.date.slice(5).replace('-', '/') + '</div><div class="grow small">' + h.work.map(st => fmtSetR(e, st)).join('、') + '</div></div>').join('') + '</div></div>';
     }
     b += '<div class="card"><h2>會痛嗎？</h2>' + (u.pain ? '<div class="note warn" style="margin-bottom:10px">已標記：' + esc(u.pain.note || '會痛') + '（' + mdLabel(u.pain.date) + '）。課表會自動換成替代動作。</div><button class="btn sm" data-a="clearPain" data-v="' + id + '">已經不痛了</button>' :
       '<div class="small muted" style="margin-bottom:8px">關節刺痛、做完隔天特定位置痛，通常是姿勢或重量的問題。肌肉痠和燒灼感是正常的。</div><input class="inp" id="painnote" placeholder="哪裡痛？例如：右肩前側"><button class="btn sm" style="margin-top:8px" data-a="setPain" data-v="' + id + '">' + ic('alert') + '標記會痛</button>') +
@@ -957,6 +963,17 @@ function sheetQty(food, meal, logId) {
   };
 }
 
+/* ===== 鍵盤與視窗 ===== */
+function isField(el) { return !!el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName); }
+function blurField() { const a = document.activeElement; if (isField(a)) { UI.kbClosedAt = Date.now(); a.blur(); } }
+function fixViewport() {
+  if (isField(document.activeElement)) return;
+  const vv = window.visualViewport;
+  if (vv && (vv.offsetTop > 1 || Math.abs(vv.height - window.innerHeight) > 1)) { const y = window.scrollY; window.scrollTo(0, y + 1); window.scrollTo(0, y); }
+}
+if (window.visualViewport) { let vt; const f = () => { clearTimeout(vt); vt = setTimeout(fixViewport, 150); }; window.visualViewport.addEventListener('resize', f); }
+document.addEventListener('focusout', () => setTimeout(fixViewport, 250));
+
 /* ===== 事件 ===== */
 const A = {};
 const FOOD_EDIT = new Set(['addFood', 'addShake', 'addComboHome', 'addCombo', 'comboNew', 'addShakeTo', 'editLog', 'saveLog', 'delLog', 'confirmFood', 'copyMeal', 'quickAdd', 'newFood', 'scanFood', 'saveBarcodeFood', 'pickFood']);
@@ -964,6 +981,7 @@ document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if (!el || el.disabled) return;
   const fn = A[el.dataset.a]; if (!fn) return;
   e.preventDefault();
+  blurField();
   if (FOOD_EDIT.has(el.dataset.a)) { const d = (el.dataset.a === 'addShake' || el.dataset.a === 'addComboHome') ? todayStr() : (UI.foodDate || todayStr()); if (dayLocked(S, d)) { toast((d === todayStr() ? '今天' : mdLabel(d)) + '已按「記錄完成」，要修改請先到飲食頁按「解鎖修改」'); return; } }
   ensureAudio();
   try { await fn(el.dataset.v, el, e); } catch (err) { console.error(err); toast('發生錯誤：' + (err.message || err)); }
@@ -1093,7 +1111,9 @@ function scrollToEx(id) {
 A.toggleEx = v => { UI.openEx = UI.openEx === v ? null : v; render(); if (UI.openEx) scrollToEx(v); };
 function liveSession() { return S.sessions.find(s => !s.end); }
 function keepRowVisible(eid) {
+  const wait = UI.kbClosedAt && Date.now() - UI.kbClosedAt < 600 ? 380 : 40;
   setTimeout(() => {
+    fixViewport();
     const row = document.getElementById('rr-' + eid) || document.querySelector('#ex-' + eid + ' [data-a="doneEx"]'); if (!row) return;
     const r = row.getBoundingClientRect();
     const tm = document.getElementById('timer'); const nav = document.getElementById('nav');
@@ -1117,15 +1137,16 @@ A.saveRow = async eid => {
   const existing = S.sets.filter(x => x.sid === s.id && x.ex === eid);
   const n = existing.length ? Math.max(...existing.map(x => x.n)) + 1 : 1;
   const st = { id: uid(), sid: s.id, ex: eid, n, w, add: 0, tw, reps, rir: '', fail: false, warm: false, cal: !!sg.cal, t: Date.now() };
-  const pr = checkPR(S, e, st); if (pr) st.pr = pr;
+  const f = prFlags(S, e, st); if (f.pr) st.pr = f.pr; if (f.rp) st.rp = f.rp;
   S.sets.push(st); delete UI.rows[s.id + ':' + eid + ':' + n]; save();
-  if (pr) toast(ic('star') + ' 新紀錄！' + esc(e.name) + ' ' + pr, true);
+  if (f.pr) toast(ic('star') + ' PR！' + esc(e.name) + ' ' + f.pr, true);
+  else if (f.rp) toast('進步：' + esc(e.name) + ' ' + f.rp);
   startTimer(sessionRx(S, s, e).rest);
   render(); keepRowVisible(eid);
 };
 A.rowRir = v => {
   const [id, r] = v.split(':'); const st = S.sets.find(x => x.id === id); if (!st) return;
-  st.rir = st.rir === r ? '' : r;
+  st.rir = st.rir === r ? '' : r; st.fail = st.rir === '0';
   const s = liveSession(); if (s) delete UI.rows[s.id + ':' + st.ex + ':' + (st.n + 1)];
   save(); render(); keepRowVisible(st.ex);
 };
@@ -1162,8 +1183,8 @@ A.editSet = v => {
   const st = S.sets.find(x => x.id === v); const e = EXMAP[st.ex];
   openSheet('editset', () => ({
     title: '修改第 ' + (st.warm ? '熱身' : st.n) + ' 組・' + esc(e.name), body: '<div class="stack">' + (e.load !== 'time' ? '<div class="grid2"><label class="f">' + LOAD_LABEL[e.load] + '（kg）<input class="inp" id="es-w" inputmode="decimal" value="' + st.w + '"></label><label class="f">小片<input class="inp" id="es-a" inputmode="decimal" value="' + (st.add || 0) + '"></label></div>' : '') +
-      '<label class="f">' + (e.load === 'time' ? '秒數' : '次數') + '<input class="inp" id="es-r" inputmode="numeric" value="' + st.reps + '"></label><label class="f">還能做幾下<select class="inp" id="es-rir"><option value="">未填</option>' + RIR_OPTS.map(([v2, l]) => '<option value="' + v2 + '"' + (st.rir === v2 ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label>' +
-      '<div class="row wrap"><button class="chip' + (st.warm ? ' on' : '') + '" data-a="esWarm">熱身組</button><button class="chip' + (st.fail ? ' on' : '') + '" data-a="esFail">做到力竭</button></div></div>',
+      '<label class="f">' + (e.load === 'time' ? '秒數' : '次數') + '<input class="inp" id="es-r" inputmode="numeric" value="' + st.reps + '"></label><label class="f">還能做幾下<select class="inp" id="es-rir"><option value="">未填</option>' + RIR_OPTS.concat(st.rir && !RIR_OPTS.some(o => o[0] === st.rir) ? [[st.rir, st.rir]] : []).map(([v2, l]) => '<option value="' + v2 + '"' + (st.rir === v2 ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label>' +
+      '<div class="row wrap"><button class="chip' + (st.warm ? ' on' : '') + '" data-a="esWarm">熱身組</button></div></div>',
     foot: '<button class="btn danger" data-a="delSet" data-v="' + v + '">刪除</button><button class="btn pri" data-a="saveEditSet" data-v="' + v + '">儲存</button>'
   }));
 };
@@ -1172,12 +1193,12 @@ A.esFail = (v, el) => el.classList.toggle('on');
 A.saveEditSet = v => {
   const st = S.sets.find(x => x.id === v); const e = EXMAP[st.ex];
   if (e.load !== 'time') { st.w = parseFloat($('#es-w').value) || 0; st.add = parseFloat($('#es-a').value) || 0; st.tw = totalWeight(e, st.w, st.add, S); }
-  st.reps = parseInt($('#es-r').value, 10) || st.reps; st.rir = $('#es-rir').value;
-  const chips = $$('.sheet-wrap[data-sheet="editset"] .chip'); st.warm = chips[0].classList.contains('on'); st.fail = chips[1].classList.contains('on');
-  delete st.pr; const pr = checkPR(S, e, st); if (pr) st.pr = pr;
+  st.reps = parseInt($('#es-r').value, 10) || st.reps; st.rir = $('#es-rir').value; st.fail = st.rir === '0';
+  const chips = $$('.sheet-wrap[data-sheet="editset"] .chip'); st.warm = chips[0].classList.contains('on');
+  recomputePRs(S, st.ex);
   save(); closeSheet('editset'); rerender();
 };
-A.delSet = async v => { if (!(await confirmBox('刪除這一組？', '刪除', true))) return; S.sets = S.sets.filter(x => x.id !== v); save(); closeSheet('editset'); rerender(); };
+A.delSet = async v => { if (!(await confirmBox('刪除這一組？', '刪除', true))) return; const ex0 = (S.sets.find(x => x.id === v) || {}).ex; S.sets = S.sets.filter(x => x.id !== v); if (ex0) recomputePRs(S, ex0); save(); closeSheet('editset'); rerender(); };
 A.editMachineNote = v => {
   const s = liveSession(); const u = exu(v);
   openSheet('mnote', () => ({ title: '機台設定・' + esc(EXMAP[v].name), body: '<div class="stack"><div class="small muted">座椅格數、椅背角度、握把位置、腿墊高度。只記在這間健身房。</div><textarea class="inp" id="mnote2" placeholder="例如：座椅第 4 格、椅背第 3 格（約 30 度）">' + esc((u.notes || {})[s.gymId] || '') + '</textarea></div>', foot: '<button class="btn pri" data-a="saveMnote2" data-v="' + v + '">儲存</button>', after: w => $('#mnote2', w).focus() }));
@@ -1230,9 +1251,11 @@ function sheetSummary(sid) {
     const mins = s.endTs && s.startTs ? Math.round((s.endTs - s.startTs) / 60000) : null;
     const prs = sets.filter(x => x.pr);
     const byEx = {}; for (const st of S.sets.filter(x => x.sid === sid)) (byEx[st.ex] = byEx[st.ex] || []).push(st);
-    let b = '<div class="stack"><div class="kpi">' + kpi('組數', sets.length) + kpi('容量', Math.round(vol).toLocaleString() + ' kg') + kpi('時間', mins != null ? mins + ' 分鐘' : s.start + '–' + (s.end || '')) + kpi('破紀錄', prs.length + ' 個') + '</div>';
-    if (prs.length) b += '<div class="note" style="border-color:var(--red)">' + prs.map(x => '<div>' + ic('star') + ' ' + esc(EXMAP[x.ex].name) + '：' + fmtSet(EXMAP[x.ex], x) + '（' + esc(x.pr) + '）</div>').join('') + '</div>';
-    b += '<div class="card"><div class="list">' + Object.keys(byEx).map(id => '<div class="li"><div class="grow"><div class="t">' + esc(EXMAP[id] ? EXMAP[id].name : id) + '</div><div class="small muted">' + byEx[id].sort((a, b2) => a.n - b2.n).map(st => (st.warm ? '熱 ' : '') + fmtSet(EXMAP[id], st)).join('、') + '</div></div></div>').join('') + '</div></div>';
+    let b = '<div class="stack"><div class="kpi">' + kpi('組數', sets.length) + kpi('容量', Math.round(vol).toLocaleString() + ' kg') + kpi('時間', mins != null ? mins + ' 分鐘' : s.start + '–' + (s.end || '')) + kpi('重量 PR', prs.length + ' 個') + '</div>';
+    if (prs.length) b += '<div class="note" style="border-color:var(--red)">' + prs.map(x => '<div>' + ic('star') + ' ' + esc(EXMAP[x.ex].name) + '：' + esc(x.pr) + '</div>').join('') + '</div>';
+    const rps = sets.filter(x => x.rp && !x.pr);
+    if (rps.length) b += '<div class="note ok small">' + rps.map(x => '<div>↑ ' + esc(EXMAP[x.ex].name) + '：' + esc(x.rp) + '</div>').join('') + '</div>';
+    b += '<div class="card"><div class="list">' + Object.keys(byEx).map(id => '<div class="li"><div class="grow"><div class="t">' + esc(EXMAP[id] ? EXMAP[id].name : id) + '</div><div class="small muted">' + byEx[id].sort((a, b2) => a.n - b2.n).map(st => (st.warm ? '熱 ' : '') + fmtSetR(EXMAP[id], st)).join('、') + '</div></div></div>').join('') + '</div></div>';
     if (s.end && UI.sheets.some(x => x.id === 'summary')) b += '<div class="note brass">下一次：' + DAY_NAME[ORDER[S.settings.cycle.idx]] + (ORDER[S.settings.cycle.idx] === 'rest' ? '，之後是推日' : '') + '。記得練完 2 小時內補蛋白質。</div>';
     b += '<button class="btn danger block" data-a="delSession" data-v="' + sid + '">刪除這次訓練</button></div>';
     return { title: DAY_NAME[s.day] + '・' + mdLabel(s.date), body: b };
@@ -1664,6 +1687,7 @@ async function boot() {
   const st = await Store.get('state');
   S = migrate(st);
   buildExMap(S);
+  if ((S.settings.prVer || 0) < 2) { recomputePRs(S); S.settings.prVer = 2; save(); }
   if (!S.profile) { UI.ob = obDefaults(); openSheet('ob', sheetOnboard, { full: true, noClose: true }); }
   render();
   if (SYNC.cfg) { SYNC.pending = syncDiff().length; drawSyncBadge(); setTimeout(() => syncNow(), 1500); }

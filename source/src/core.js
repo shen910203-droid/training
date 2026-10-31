@@ -44,8 +44,17 @@ const PHASES = {
   4: { name: '減量週', rir: '減量週：組數減半、重量打 9 折、不做到力竭', short: '組數減半、重量 ×0.9' }
 };
 const FAIL_TEXT = { no: '不要做到力竭', last: '最後一組可以做到力竭', must: '最後一組要做到力竭' };
-const RIR_OPTS = [['0-1', '0–1'], ['2-3', '2–3'], ['4-5', '4–5'], ['6+', '6+']];
-const CAL_FACTOR = { '6+': 1.2, '4-5': 1.1, '2-3': 1, '0-1': 0.95 };
+// 還能做幾下（RIR）。'0' = 力竭。舊資料的 '0-1'、'2-3' 仍可讀
+const RIR_OPTS = [['0', '力竭'], ['1', '1'], ['2', '2'], ['3', '3'], ['4-5', '4–5'], ['6+', '6+']];
+const CAL_FACTOR = { '6+': 1.2, '4-5': 1.1, '3': 1, '2': 1, '1': 0.95, '0': 0.95, '2-3': 1, '0-1': 0.95 };
+const RIR_NUM = { '0': 0, '1': 1, '2': 2, '3': 3, '4-5': 4.5, '6+': 6, '0-1': 0.5, '2-3': 2.5 };
+function rirOf(st) { if (!st) return null; if (st.rir && RIR_NUM[st.rir] != null) return RIR_NUM[st.rir]; if (st.fail) return 0; return null; }
+function rirLabel(st) {
+  if (!st) return ''; const r = st.rir || (st.fail ? '0' : '');
+  if (!r) return ''; if (r === '0') return '力竭';
+  return '留' + r.replace('-', '–');
+}
+function fmtSetR(e, st) { const l = rirLabel(st); return fmtSet(e, st) + (l ? '（' + l + '）' : ''); }
 
 function phaseOf(round) {
   const r = ((Math.max(1, round) - 1) % 21) + 1;
@@ -235,16 +244,26 @@ function suggestion(S, e, ph, sid) {
   const ago = diffDays(last.date, todayStr());
   const when = ago === 0 ? '今天稍早' : ago + ' 天前';
   let text, type;
-  if (e.load === 'time') { type = 'reps'; text = '上次最長 ' + top.reps + ' 秒 → 今天試 ' + (top.reps + 5) + ' 秒'; }
+  let target = null;
+  if (e.load === 'time') { type = 'reps'; target = top.reps + 5; text = '上次最長 ' + top.reps + ' 秒 → 今天試 ' + (top.reps + 5) + ' 秒'; }
   else if (e.load === 'assist') {
-    if (top.reps >= hi) { type = 'up'; text = '上次輔助 ' + fmtNum(top.tw) + ' 做到 ' + top.reps + ' 下 → 今天減少一格輔助'; }
-    else { type = 'reps'; text = '上次輔助 ' + fmtNum(top.tw) + '×' + top.reps + ' → 今天同輔助目標 ' + Math.min(top.reps + 1, hi) + ' 下'; }
-  } else if (top.reps >= hi) {
-    type = 'up';
-    text = '上次 ' + fmtSet(e, top) + ' 已達 ' + hi + ' 下 → 今天加重（下一格或加小片），目標 ' + lo + ' 下以上';
+    if (top.reps >= hi) { type = 'up'; target = lo; text = '上次輔助 ' + fmtNum(top.tw) + ' 做到 ' + top.reps + ' 下 → 今天減少一格輔助'; }
+    else { type = 'reps'; target = Math.min(top.reps + 1, hi); text = '上次輔助 ' + fmtNum(top.tw) + '×' + top.reps + ' → 今天同輔助目標 ' + target + ' 下'; }
   } else {
-    type = 'reps';
-    text = '上次 ' + fmtSet(e, top) + ' → 今天同重量，目標 ' + Math.min(Math.max(top.reps + 1, lo), hi) + ' 下';
+    const rn = rirOf(top); const lab = fmtSetR(e, top);
+    if (top.reps >= hi) {
+      type = 'up'; target = lo;
+      text = rn != null && rn >= 3
+        ? '上次 ' + lab + ' 做到 ' + hi + ' 下還很輕鬆 → 今天加重，可以加兩格，目標 ' + lo + ' 下以上'
+        : '上次 ' + lab + ' 已達 ' + hi + ' 下 → 今天加重（下一格或加小片），目標 ' + lo + ' 下以上';
+    } else if (rn === 0 && top.reps < lo) {
+      type = 'down'; target = lo;
+      text = '上次 ' + lab + ' 力竭也只做到 ' + top.reps + ' 下，低於 ' + lo + ' 下 → 今天減一格重量，先做到 ' + lo + ' 下以上';
+    } else {
+      type = 'reps';
+      const add = rn != null && rn >= 3 ? 2 : 1; target = Math.min(Math.max(top.reps + add, lo), hi);
+      text = '上次 ' + lab + ' → 今天同重量，目標 ' + Math.min(Math.max(top.reps + add, lo), hi) + ' 下' + (rn != null && rn >= 3 ? '（上次還很有餘力）' : '');
+    }
   }
   if (ph.n === 4) text = '減量週：重量約 ' + fmtNum(r05(top.tw * 0.9)) + '，組數減半，做輕鬆就好';
   // 停滯
@@ -254,13 +273,14 @@ function suggestion(S, e, ph, sid) {
     const recent = Math.max(v(hist[0]), v(hist[1]), v(hist[2]));
     if (recent <= v(hist[3])) stall = true;
   }
-  return { type, text, when, last, top, stall };
+  return { type, text, when, last, top, stall, target };
 }
 function calNext(w, rir) {
   const f = CAL_FACTOR[rir]; if (!f || !w) return null;
   return r05(w * f);
 }
 function calText(w, rir) {
+  if (rir === '0' || rir === '1') rir = '0-1'; else if (rir === '2' || rir === '3') rir = '2-3';
   if (rir === '6+') return '太輕了。下一組加重到約 ' + fmtNum(calNext(w, rir)) + '（調到最接近的那格）';
   if (rir === '4-5') return '還有空間。下一組加到約 ' + fmtNum(calNext(w, rir));
   if (rir === '2-3') return '這就是你的工作重量，下一組維持';
@@ -281,20 +301,36 @@ function prefill(S, e, sid, n) {
   return { w: '', add: 0, reps: e.load === 'time' ? 30 : 10, warm: false };
 }
 /* PR 判定：同樣或更多次數下，重量比以前都重 */
-function checkPR(S, e, st) {
-  if (st.warm || e.load === 'assist') return null;
-  const prev = S.sets.filter(x => x.ex === e.id && x.id !== st.id && x.sid !== st.sid && !x.warm);
-  if (!prev.length) return null;
-  if (e.load === 'time') { const b = Math.max(...prev.map(x => x.reps)); return st.reps > b ? '最久紀錄' : null; }
-  if (e.load === 'bw' && st.tw === 0) {
-    const b = Math.max(0, ...prev.filter(x => x.tw === 0).map(x => x.reps)); return st.reps > b ? '次數紀錄' : null;
+function prFlags(S, e, st) {
+  const out = { pr: null, rp: null };
+  if (st.warm) return out;
+  const t0 = st.t || 0;
+  const prev = S.sets.filter(x => x.ex === e.id && x.id !== st.id && !x.warm && (x.t || 0) < t0);
+  if (!prev.some(x => x.sid !== st.sid)) return out; // 第一次做這個動作不算紀錄
+  if (e.load === 'time') { if (st.reps > Math.max(...prev.map(x => x.reps))) out.pr = '最久紀錄 ' + st.reps + ' 秒'; return out; }
+  if (e.load === 'bw' && st.tw === 0) { const bz = prev.filter(x => x.tw === 0); if (bz.length && st.reps > Math.max(...bz.map(x => x.reps))) out.pr = '次數紀錄 ' + st.reps + ' 下'; return out; }
+  if (e.load === 'assist') {
+    const mn = Math.min(...prev.map(x => x.tw));
+    if (st.tw < mn) out.pr = '輔助最少 ' + fmtNum(st.tw) + 'kg（之前 ' + fmtNum(mn) + '）';
+    else { const same = prev.filter(x => x.tw <= st.tw + 1e-9); if (same.length && st.reps > Math.max(...same.map(x => x.reps))) out.rp = fmtNum(st.tw) + 'kg 輔助次數新高'; }
+    return out;
   }
-  const better = prev.filter(x => x.reps >= st.reps);
-  const maxW = better.length ? Math.max(...better.map(x => x.tw)) : -1;
-  if (st.tw > maxW) return st.reps + ' 下最重紀錄';
-  const be = bestE1rm(e, prev), ce = e1rm(st.tw, st.reps);
-  if (ce && be && ce > be) return '估計 1RM 新高';
-  return null;
+  const mx = Math.max(...prev.map(x => x.tw));
+  if (st.tw > mx + 1e-9) { out.pr = '重量新高 ' + fmtNum(st.tw) + 'kg（之前最重 ' + fmtNum(mx) + 'kg）'; return out; }
+  const heavier = prev.filter(x => x.tw >= st.tw - 1e-9);
+  if (heavier.length && st.reps > Math.max(...heavier.map(x => x.reps))) out.rp = fmtNum(st.tw) + 'kg 次數新高（' + st.reps + ' 下）';
+  return out;
+}
+function checkPR(S, e, st) { return prFlags(S, e, st).pr; }
+// 依時間重算所有（或某動作）的紀錄標記
+function recomputePRs(S, exId) {
+  const L = S.sets.filter(x => !exId || x.ex === exId).slice().sort((a, b) => (a.t || 0) - (b.t || 0));
+  for (const st of L) {
+    const e = EXMAP[st.ex]; if (!e) continue;
+    const f = prFlags(S, e, st);
+    if (f.pr) st.pr = f.pr; else delete st.pr;
+    if (f.rp) st.rp = f.rp; else delete st.rp;
+  }
 }
 function maxEverTw(S, exId, exceptId) {
   const p = S.sets.filter(x => x.ex === exId && x.id !== exceptId && !x.warm);
@@ -497,4 +533,4 @@ function aiSummary(S) {
   L.push('我的問題：');
   return L.join('\n');
 }
-if (typeof module !== 'undefined') module.exports = { dayStatus, foodHistory, foodTips, targetOn, dayLocked, rxFor, baseRx, addRir, ymd, addDays, diffDays, phaseOf, calcTargets, linreg, adaptive, blankState, totalWeight, e1rm, suggestion, checkPR, syncCycle, advanceCycle, skipRest, dayPlan, buildExMap, weekReview, muscleWeek, dayTotals, calNext, prefill, waterGoal, setVolume, exHistory, topSet, aiSummary };
+if (typeof module !== 'undefined') module.exports = { prFlags, recomputePRs, rirLabel, rirOf, fmtSetR, dayStatus, foodHistory, foodTips, targetOn, dayLocked, rxFor, baseRx, addRir, ymd, addDays, diffDays, phaseOf, calcTargets, linreg, adaptive, blankState, totalWeight, e1rm, suggestion, checkPR, syncCycle, advanceCycle, skipRest, dayPlan, buildExMap, weekReview, muscleWeek, dayTotals, calNext, prefill, waterGoal, setVolume, exHistory, topSet, aiSummary };

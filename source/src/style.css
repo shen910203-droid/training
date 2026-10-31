@@ -326,3 +326,12 @@ button.srow { all: unset; display: contents; cursor: pointer; }
 .supp-it.on { border-color: rgba(98,192,143,.5); background: var(--ok-soft); }
 .supp-it.on .box { background: var(--ok); border-color: var(--ok); color: #0b0d10; }
 .supp-it .box svg { width: 14px; height: 14px; }
+
+.srow .prev { flex-direction: column; align-items: flex-start; justify-content: center; line-height: 1.15; }
+.srow .prev .pv { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.srow .rl { display: block; font-family: var(--ff); font-size: 11px; font-weight: 600; color: var(--mu); line-height: 1.1; margin-top: 2px; }
+.srow .rl.f { color: var(--red-soft); }
+.srow .c.rv { flex-direction: column; line-height: 1.1; }
+.rirg { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.rirg .chip { justify-content: center; padding-left: 0; padding-right: 0; min-width: 0; }
+.rirg .chip.f.on { background: var(--red); border-color: var(--red); color: #fff; }

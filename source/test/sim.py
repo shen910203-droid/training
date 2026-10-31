@@ -35,7 +35,7 @@ with sync_playwright() as p:
         isTime=pg.evaluate(f"EXMAP['{eid}'].load==='time'")
         base=20+k*5
         T=pg.evaluate(f"sessionRx(S,liveSession(),EXMAP['{eid}']).sets")
-        for j,(rir) in enumerate((['6+','4-5','2-3','2-3','2-3'])[:T]):
+        for j,(rir) in enumerate((['6+','4-5','2','2','2'])[:T]):
             if not isTime: pg.fill(f'#rw-{eid}', str(base if j==0 else pg.locator(f'#rw-{eid}').input_value()))
             pg.fill(f'#rr-{eid}','10')
             pg.locator(f'[data-a="saveRow"][data-v="{eid}"]').click(); pg.wait_for_timeout(120)
@@ -78,7 +78,7 @@ with sync_playwright() as p:
     ok(v!='', f'{lab} s2 prefill weight empty')
     chk(pg,f'{lab}_s2_start')
     pg.locator(f'[data-a="saveRow"][data-v="{eid}"]').click(); pg.wait_for_timeout(150)
-    ok(pg.locator('[data-a="rowRir"]').count()==0, f'{lab} no rir after calibrated')
+    ok(pg.locator('[data-a="rowRir"]').count()==6 and '下次會顯示' in pg.locator('.rirbox').first.inner_text(), f'{lab} optional rir chips after calibrated')
     # 半途結束 → 詢問
     pg.locator('[data-a="finishSession"]').first.click(); pg.wait_for_timeout(250)
     ok(pg.locator('.dialog').count()==1,f'{lab} finish partial asks')

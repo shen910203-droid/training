@@ -44,7 +44,7 @@ with sync_playwright() as p:
     # 第二次（下一輪推日）：重量更高 -> PR
     pg.evaluate("()=>{S.settings.cycle={idx:0,round:2,restOn:null}; render();}")
     pg.locator('[data-a="startSession"]').first.click(); pg.wait_for_timeout(200)
-    ok(pg.locator('#rw-'+eid).input_value()=='20','prefill from last '+pg.locator('#rw-'+eid).input_value())
+    ok(pg.locator('#rw-'+eid).input_value()=='30','prefill from last top set '+pg.locator('#rw-'+eid).input_value())
     sug=pg.locator('.exc.open .note.brass').first.text_content()
     ok('上次 30×10' in sug,'suggestion '+sug)
     pg.fill('#rw-'+eid,'32'); pg.locator(f'[data-a="saveRow"][data-v="{eid}"]').click(); pg.wait_for_timeout(150)
